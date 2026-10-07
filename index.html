@@ -1,0 +1,1452 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Пиксельный квест</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #3a1f12; --paper: #ffe2a6; --paper-2: #f6c97c; --wood: #8a4a1c; --wood-dark: #4f260d; --trim: #e59a3a; --rose: #e2445c; --night: #1b1420;
+  /* Основной текст: Rubik с полноценной кириллицей. Заголовки: пиксельный Press Start 2P, только кратно 8px и без жирности */
+  --font: 'Rubik', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --pixel: 'Press Start 2P', 'Rubik', system-ui, sans-serif;
+  box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: inherit; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--night); color: var(--ink); font-family: var(--font); font-size: 18px; line-height: 1.45; overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; overflow-wrap: break-word; }
+[hidden] { display: none !important; }
+#game { position: fixed; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; display: block; }
+img, canvas { image-rendering: pixelated; }
+.px { font-family: var(--pixel); font-weight: 400; font-synthesis: none; letter-spacing: 0; line-height: 1.5; }
+
+.panel { background: var(--paper); color: var(--ink); border: 4px solid var(--wood-dark); border-radius: 4px; box-shadow: inset 0 0 0 3px var(--trim), inset 0 0 0 5px var(--wood), 0 5px 0 rgba(20, 10, 25, .35); }
+.btn { font-family: var(--pixel); font-weight: 400; font-synthesis: none; font-size: 16px; line-height: 1.5; color: var(--ink); padding: 14px 22px 12px; cursor: pointer; background: var(--paper); border: 4px solid var(--wood-dark); border-radius: 4px; box-shadow: inset 0 0 0 3px var(--trim), inset 0 -7px 0 var(--paper-2), 0 5px 0 rgba(20, 10, 25, .45); }
+.btn { max-width: 100%; text-wrap: balance; }
+.btn:hover { background: #fff0c9; }
+.btn:active { transform: translateY(3px); box-shadow: inset 0 0 0 3px var(--trim), 0 2px 0 rgba(20, 10, 25, .45); }
+.btn:focus-visible, .hud-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.btn.quiet { font-family: var(--font); font-weight: 500; font-size: 17px; line-height: 1.2; padding: 12px 18px; }
+
+/* верхняя панель */
+#hud { position: fixed; left: 0; right: 0; top: 0; padding: calc(10px + env(safe-area-inset-top, 0px)) 10px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; pointer-events: none; }
+.chip { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 9px; border-width: 3px; box-shadow: inset 0 0 0 2px var(--trim), 0 3px 0 rgba(20, 10, 25, .35); font-family: var(--pixel); font-synthesis: none; font-size: 16px; line-height: 24px; }
+.chip img { height: 24px; width: auto; }
+@media (max-width: 420px) { .chip { padding: 5px 9px 5px 7px; gap: 6px; } .chip img { height: 20px; } }
+#goal { flex: 1 1 110px; min-width: 0; padding: 8px 13px; font-size: 16px; font-weight: 500; line-height: 1.3; border-width: 3px; box-shadow: inset 0 0 0 2px var(--trim), 0 3px 0 rgba(20, 10, 25, .35); max-width: 480px; }
+.hud-btns { display: flex; gap: 8px; margin-left: auto; }
+.hud-btn { pointer-events: auto; font: 500 15px/1.2 var(--font); color: var(--ink); padding: 9px 12px; cursor: pointer; border-width: 3px; box-shadow: inset 0 0 0 2px var(--trim), 0 3px 0 rgba(20, 10, 25, .35); white-space: nowrap; }
+.hud-btn:hover { background: #fff0c9; }
+
+#toast { position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translate(-50%, -14px); opacity: 0; transition: opacity .25s, transform .25s; display: flex; align-items: center; gap: 12px; padding: 11px 18px 11px 13px; font-size: 17px; line-height: 1.35; width: max-content; max-width: min(92vw, 520px); pointer-events: none; }
+#toast.on { opacity: 1; transform: translate(-50%, 0); }
+#toast img { height: 30px; flex: none; }
+@media (max-width: 560px) { #toast { top: calc(112px + env(safe-area-inset-top, 0px)); } }
+
+/* диалог */
+#dlg { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 0 10px calc(14px + env(safe-area-inset-bottom, 0px)); cursor: pointer; touch-action: none; }
+.dlg-box { width: min(780px, 100%); display: flex; min-height: 156px; }
+.dlg-main { flex: 1; min-width: 0; padding: 18px 22px 30px; font-size: 21px; line-height: 1.4; position: relative; }
+#dlgText { margin: 0; min-height: 4.2em; }
+#dlgMore { position: absolute; right: 16px; bottom: 10px; width: 0; height: 0; border: 7px solid transparent; border-top: 9px solid var(--wood); animation: bob .7s steps(2) infinite; }
+@keyframes bob { 50% { transform: translateY(4px); } }
+.dlg-side { flex: none; width: 138px; margin: 5px 5px 5px 0; padding: 9px 8px 8px; display: flex; flex-direction: column; align-items: center; gap: 7px; background: var(--paper-2); border-left: 3px solid var(--wood); }
+#dlgFace { width: 102px; height: 102px; background: #f9b97a; border: 3px solid var(--wood-dark); }
+#dlgWho { font-weight: 600; font-size: 16px; line-height: 1.2; text-align: center; max-width: 100%; }
+@media (max-width: 560px) { .dlg-main { font-size: 18px; padding: 15px 16px 26px; } .dlg-side { width: 100px; } #dlgFace { width: 68px; height: 68px; } #dlgWho { font-size: 14px; } .dlg-box { min-height: 140px; } }
+
+/* экраны поверх игры */
+.overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: calc(20px + env(safe-area-inset-top, 0px)) 20px calc(20px + env(safe-area-inset-bottom, 0px)); text-align: center; overflow-y: auto; }
+.overlay > * { flex: none; }
+.overlay h1, .overlay h2 { font-family: var(--pixel); font-weight: 400; font-synthesis: none; letter-spacing: 0; line-height: 1.5; margin: 0; text-wrap: balance; max-width: 100%; }
+#title { background: linear-gradient(rgba(27, 20, 32, .35), rgba(27, 20, 32, .82)); color: var(--paper); }
+#hero { width: min(520px, 92vw); height: auto; aspect-ratio: 104 / 30; }
+#tTitle { font-size: 32px; color: var(--paper); text-shadow: 0 4px 0 var(--wood-dark), 0 8px 0 rgba(20, 10, 25, .5); }
+#tSub { margin: 0; font-size: 20px; max-width: 34ch; line-height: 1.4; color: #ffeecb; }
+#tCtl { margin: 6px 0 0; font-size: 15px; line-height: 1.45; max-width: 44ch; color: #e8d6c0; }
+
+/* пролог */
+#prologue { background: rgba(27, 20, 32, .8); justify-content: flex-start; }
+.story { width: min(620px, 100%); margin: auto 0; padding: 26px 28px 26px; text-align: left; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+#storyCv { align-self: center; width: 336px; max-width: 100%; height: auto; aspect-ratio: 112 / 44; }
+#pTitle { font-size: 24px; }
+#pBody p { margin: 0 0 12px; font-size: 19px; line-height: 1.55; opacity: 0; transform: translateY(6px); animation: rise .5s ease-out forwards; animation-delay: calc(var(--i) * .4s + .15s); }
+#pBody p:last-child { margin-bottom: 0; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+#pBtn { align-self: center; margin-top: 4px; }
+
+#mirror { background: radial-gradient(circle at 50% 38%, #4a3a6e 0, #1b1420 70%); color: var(--paper); justify-content: flex-start; }
+#mirrorCv { width: 240px; height: 304px; margin-top: auto; }
+#mirrorCv.flash { animation: flash .7s ease-out; }
+@keyframes flash { 0% { filter: brightness(1); } 35% { filter: brightness(4) saturate(.2); } 100% { filter: brightness(1); } }
+#mirrorList { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 560px; min-height: 38px; }
+#mirrorList li { background: #d6f1ff; color: #1f3a56; border: 3px solid #2f5f8a; padding: 5px 12px; font-size: 16px; font-weight: 600; line-height: 1.3; }
+#mirrorOut { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: auto; }
+#mirrorTitle { font-size: 24px; text-shadow: 0 3px 0 var(--wood-dark); }
+#mirrorText { margin: 0; max-width: 40ch; font-size: 19px; line-height: 1.45; }
+@media (max-height: 640px) { #mirrorCv { width: 180px; height: 228px; } }
+
+#letter { background: rgba(27, 20, 32, .78); justify-content: flex-start; }
+.letter-card { width: min(600px, 100%); margin: auto 0; padding: 30px 28px 26px; text-align: left; -webkit-user-select: text; user-select: text; }
+#letterBouquet { display: block; width: 192px; height: 208px; margin: -6px auto 2px; }
+#letterBouquetCap { margin: 0 0 16px; text-align: center; font-size: 15px; color: #7a4a2a; }
+#letterTitle { margin-bottom: 16px; font-size: 24px; }
+#letterBody p { margin: 0 0 12px; font-size: 19px; line-height: 1.55; }
+#letterSign { margin: 4px 0 18px; font-size: 19px; font-weight: 600; text-align: right; }
+#letterPS { margin: 0 0 16px; font-size: 18px; line-height: 1.5; font-style: italic; }
+#letterReal { margin: 0 0 16px; padding: 14px 16px; background: #fff3d1; border: 3px dashed var(--wood); font-size: 19px; line-height: 1.45; font-weight: 600; }
+#letterStats { margin: 0 0 18px; font-size: 16px; color: #7a4a2a; }
+.letter-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+#confirm { background: rgba(27, 20, 32, .72); }
+.confirm-card { width: min(420px, 100%); padding: 26px 24px 22px; text-align: left; }
+#confirmText { margin: 0 0 18px; font-size: 19px; line-height: 1.45; font-weight: 500; }
+.confirm-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+#fade { position: fixed; inset: 0; background: var(--night); opacity: 0; pointer-events: none; transition: opacity .38s; }
+#fade.on { opacity: 1; }
+
+@media (max-width: 700px) { #prologue { padding-left: 12px; padding-right: 12px; } .story { gap: 10px; padding: 18px 18px 18px !important; } #storyCv { width: 224px; } #pBody p { font-size: 16px !important; line-height: 1.45; margin-bottom: 9px; } }
+@media (max-width: 700px) { #tTitle { font-size: 24px; } #tSub { font-size: 18px; } #pTitle, #mirrorTitle, #letterTitle { font-size: 16px; } .story, .letter-card { padding: 22px 20px 22px; } #pBody p, #letterBody p, #letterReal, #mirrorText { font-size: 18px; } }
+@media (max-width: 360px) { #tTitle { font-size: 16px; } }
+@media (max-height: 560px) and (min-aspect-ratio: 4/3) {
+  #mirror { display: grid; grid-template-columns: auto minmax(0, 420px); justify-content: center; align-content: center; column-gap: 28px; row-gap: 12px; }
+  #mirrorCv { grid-row: 1 / span 2; width: 180px; height: 228px; margin: 0; }
+  #mirrorList { align-self: end; } #mirrorOut { align-self: start; margin: 0; }
+  #hero { width: 312px; } #title { gap: 10px; } #tTitle { font-size: 24px; }
+  #storyCv { width: 224px; }
+}
+@media (prefers-reduced-motion: reduce) { #dlgMore { animation: none; } #toast, #fade { transition: none; } #pBody p { animation: none; opacity: 1; transform: none; } }
+
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Игровое поле"></canvas>
+
+<div id="hud" hidden>
+  <div class="chip panel" title="Осколки зеркала"><img id="shardImg" alt="Осколки"><span id="shardN">0/0</span></div>
+  <div class="chip panel" title="Цветы"><img id="flowerImg" alt="Цветы"><span id="flowerN">0/25</span></div>
+  <div class="chip panel" title="Питомцы"><img id="petImg" alt="Питомцы"><span id="petN">0/0</span></div>
+  <div id="goal" class="panel"></div>
+  <div class="hud-btns"><button id="muteBtn" class="panel hud-btn" type="button" aria-pressed="false">Звук: вкл</button><button id="restartBtn" class="panel hud-btn" type="button"></button></div>
+</div>
+
+<div id="toast" class="panel" role="status"><img id="toastImg" alt=""><span id="toastText"></span></div>
+
+<div id="dlg" hidden>
+  <div class="dlg-box panel" id="dlgBox">
+    <div class="dlg-main"><p id="dlgText" aria-live="polite"></p><span id="dlgMore"></span></div>
+    <div class="dlg-side" id="dlgSide"><canvas id="dlgFace" width="34" height="34"></canvas><div id="dlgWho"></div></div>
+  </div>
+</div>
+
+<div id="title" class="overlay">
+  <canvas id="hero" width="104" height="30"></canvas>
+  <h1 id="tTitle"></h1>
+  <p id="tSub"></p>
+  <button id="startBtn" class="btn" type="button"></button>
+  <p id="tCtl"></p>
+</div>
+
+<div id="prologue" class="overlay" hidden>
+  <div class="story panel">
+    <canvas id="storyCv" width="112" height="44"></canvas>
+    <h2 id="pTitle"></h2>
+    <div id="pBody"></div>
+    <button id="pBtn" class="btn" type="button"></button>
+  </div>
+</div>
+
+<div id="mirror" class="overlay" hidden>
+  <canvas id="mirrorCv" width="60" height="76"></canvas>
+  <ul id="mirrorList"></ul>
+  <div id="mirrorOut" hidden>
+    <h2 id="mirrorTitle"></h2>
+    <p id="mirrorText"></p>
+    <button id="mirrorBtn" class="btn" type="button"></button>
+  </div>
+</div>
+
+<div id="letter" class="overlay" hidden>
+  <div class="letter-card panel">
+    <canvas id="letterBouquet" width="48" height="52" hidden></canvas>
+    <p id="letterBouquetCap" hidden></p>
+    <h2 id="letterTitle"></h2>
+    <div id="letterBody"></div>
+    <p id="letterSign"></p>
+    <p id="letterPS" hidden></p>
+    <p id="letterReal"></p>
+    <p id="letterStats"></p>
+    <div class="letter-actions"><button id="letterStay" class="btn quiet" type="button"></button><button id="letterRestart" class="btn quiet" type="button"></button></div>
+  </div>
+</div>
+
+<div id="confirm" class="overlay" hidden>
+  <div class="confirm-card panel" role="alertdialog" aria-labelledby="confirmText">
+    <p id="confirmText"></p>
+    <div class="confirm-actions"><button id="confirmNo" class="btn quiet" type="button"></button><button id="confirmYes" class="btn quiet" type="button"></button></div>
+  </div>
+</div>
+
+<div id="fade"></div>
+
+<script>
+/* ====================================================================================
+   НАСТРОЙКИ: ТЕКСТЫ И ПЕРСОНАЖИ
+   Все, что в квадратных скобках, это плейсхолдеры. Замените их своим текстом.
+   Больше в коде ничего трогать не нужно.
+   ==================================================================================== */
+const TEXT = {
+  title: 'День Рождения Принцессы',
+  subtitle: 'От Юры для Ульяны',
+  start: 'Начать игру',
+  controls: 'Касание или клик: идти и говорить. Клавиатура: стрелки или WASD, пробел.',
+  // Экран пролога: открывается после кнопки «Начать игру» и объясняет, что происходит
+  prologueTitle: 'Пропажа принцессы',
+  prologue: [
+    'Одним солнечным осенним днем все в королевстве проснулись с предвкушением праздника. В этот день всеми любимой принцессе исполнилось 25 лет!',
+    'В честь этого все жители королевства собрались на большой праздник - накрыли стол и принесли подарки. Но принцессы нигде не было! Все очень сильно расстроились. :(',
+    'Тем более, что вход в замок возможен только если принцесса посмотрит в волшебное зеркало, которое накануне разбилось.',
+    'Тебя, путник, тоже пригласили на праздник. Поговори с жителями и узнай, что случилось!'
+  ],
+  prologueBtn: 'Надо узнать!',
+  goals: {
+    ask: 'Поговори с жителями принцессы',
+    mirror: 'Почини зеркало',
+    gate: 'Войди в замок',
+    hall: 'Подойди к Юре',
+    done: '' // пустая строка скрывает плашку цели после письма
+  },
+  shardGot: 'Получен осколок зеркала:',
+  shardName: 'Осколок',
+  allShards: 'Подойди к зеркалу',
+  mirrorNeed: 'В раме не хватает осколков. Расспроси жителей о принцессе.',
+  mirrorAfter: 'С днем рождения, принцесса!',
+  mirrorTitle: 'Так ты и есть принцесса!',
+  mirrorText: 'С днем рождения, Ульяна!',
+  mirrorBtn: 'Дальше',
+  gateLocked: 'Ворота заперты. Они откроются, когда принцесса посмотрит в волшебное зеркало.',
+  gateOpened: 'Скорее на праздник!!',
+  sign: 'Деревня «Ульяновск»',
+  chorus: 'Ульяна поздравляем с днем рождения дорогая!!',
+  chorusName: 'Все хором',
+  hallHint: 'Нажми на гостя с сердечком, чтобы услышать поздравление',
+  letterTitle: 'С днем рождения!',
+  letter: [
+    'Ульяна, моя любовь и самый дорогой человек, моя Альфа и Омега, с днем рождения тебя!',
+    'Как я уже когда-то говорил, я каждый раз удивляюсь тому, насколько удивительна ты. Я просто хотел бы сказать тебе спасибо за твоё существование. Ты наполняешь каждый мой день смыслом, вселяешь в меня желание исполнять цели и становиться ради тебя лучше с каждым днем. Не найдётся способа выразить мою любовь и привязанность к тебе, то желание и восторг, которыми ты меня наполняешь, и то, насколько важно твоё существование в моей жизни. Я просто хочу скорее вернуться, обнять тебя и никогда больше не отпускать.',
+    'Ты - лучшее, что со мной случалось! Оставайся такой же смелой, жизнерадостной, справедливой и любимой. Обнимаю и целую! ❤️'
+  ],
+  realWorld: '', // пустая строка скрывает рамку перехода в реальный мир
+  signature: 'Твой Юра',
+  petsAll: 'Все питомцы в сборе! Теперь они чуют цветы и ведут к ближайшему.',
+  petsPS: 'И мы поздравляем тебя! От Свинок, Розика и Сары!',
+  trackOn: 'Граммофон играет пластинку',
+  trackOff: 'Снова играет «Happy Birthday»',
+  trackMissing: 'Файл song.mp3 не найден: положите его в папку с игрой',
+  bouquetName: 'Букет',
+  bouquetGot: 'Юра дарит букет из собранных цветов:',
+  bouquetCap: 'Букет из собранных цветов:',
+  flowersFound: 'Найдено цветов:',
+  petsFound: 'Питомцы:',
+  letterStay: 'Остаться в зале',
+  restart: 'Сыграть заново',
+  restartBtn: 'Заново',
+  restartAsk: 'Начать игру заново? Весь прогресс сбросится.',
+  restartYes: 'Да, заново',
+  restartNo: 'Отмена'
+};
+
+/* Цветы на карте: пока вместо воспоминаний показывается название цветка.
+   Сколько строк, столько и цветов. kind: peony | ranunculus | rose. Позже в text можно вписать воспоминание. */
+const FLOWERS = [
+  { text: 'Пион «Сара Бернар»', kind: 'peony', col: '#f4a3c4' },
+  { text: 'Пион «Коралловый шарм»', kind: 'peony', col: '#ff8f7a' },
+  { text: 'Пион «Дюшес де Немур»', kind: 'peony', col: '#fbf3df' },
+  { text: 'Ранункулюс розовый', kind: 'ranunculus', col: '#f7b3cf' },
+  { text: 'Ранункулюс персиковый', kind: 'ranunculus', col: '#ffc29a' },
+  { text: 'Ранункулюс белый', kind: 'ranunculus', col: '#fdf8ec' },
+  { text: 'Пионовидная роза «Джульетта»', kind: 'rose', col: '#f9c9a0' },
+  { text: 'Пионовидная роза «Кейра»', kind: 'rose', col: '#f6c6d0' },
+  { text: 'Пионовидная роза «Пейшенс»', kind: 'rose', col: '#f8eed8' },
+  { text: 'Пионовидная роза «Миранда»', kind: 'rose', col: '#f08fb4' }
+];
+
+/* Жители с осколками. Добавьте или уберите объект, счетчик осколков пересчитается сам.
+   look: ключ из LOOKS ниже. x, y: клетка на карте деревни. */
+const CAST = [
+  { id: 'a', name: 'Танечка', look: 'A', x: 8, y: 16,
+    lines: [
+      'Ах, где же Ульянка! Так без нее грустно и одиноко, да еще и с Розкой некому гулять(',
+      'Помню, как Маленькая Ульянка захотела проколоть уши. Сказала: я боюсь, но хочу.',
+      'Пришлось мне проколоть себе первой одну дырку у косметолога, пистолетом, еле выдержала - было больно. Но хотела показать пример, что можно.',
+      'Уля приготовилась, зажмурилась и врач пистолетом проколол ей ушко. Больно! Вскричала Ульянка и пулей выбежала от врача.',
+      'Как бы мы не уговаривали ее, не вернулась. Так и ходила как маленький панк - с одной серьгой.',
+      'К нам все приставали - вы потеряли одну сережку, а я говорила - так она сама выбрала и решила.',
+      'Только спустя год Ульяна проколола второе ухо. 😎'
+    ],
+    shard: 'Смелость', after: 'А может ты и есть Улька?',
+    hall: [
+      'Дочь моя! Моя девочка! С днем твоего рождения! Ты моя красотка, девочка-улыбка, девочка-дисциплина.',
+      'С тобой всегда можно и веселиться, и положиться на тебя в любом деле! Крепко тебя люблю, горжусь и любуюсь.',
+      'Ты моя счастливая звездочка и спасибо, что ты выбрала меня быть твоей мамой ❤️'
+    ] },
+  { id: 'b', name: 'Ксюша Тугеева', look: 'B', x: 33, y: 16,
+    lines: ['Принцесса пропала, и мне даже не у кого спросить совета, что теперь делать.', 'Ей можно позвонить в любую минуту. Она выслушает, поддержит и подскажет.', 'У нее открытая и добрая душа. Расспроси остальных, такую принцессу помнит каждый.'],
+    shard: 'Поддержка', after: 'Эх, позвонить бы сейчас принцессе и спросить, где она.', hall: 'Я люблю тебя за то, что тебе всегда можно позвонить и попросить совета, ты всегда рядом и поддержишь. Ты открытый человек с доброй душой! Будь счастлива, люби и расцветай!' },
+  { id: 'c', name: 'Дина Бигушева', look: 'C', x: 14, y: 24,
+    lines: ['Ах, принцесса никогда не унывает и всегда находит что-то хорошее в любой ситуации!', 'Помню, как она споткнулась об иностранца в одном далеком королевстве, и все равно смогла над этим посмеяться!'],
+    shard: 'Жизнерадостность', after: 'Куда же она делась…',
+    hall: '«Мне нравится в тебе умение не унывать в любых ситуациях! Больше всего меня впечатляет твоя мягкая сила 🌼ты всегда можешь выйти из любой ситуации, даже если споткнулась об японца 🤍 обнимаю 🫂»' },
+  { id: 'd', name: 'Аня', look: 'anya', x: 27, y: 25,
+    lines: ['Без принцессы в королевстве пропал огонек. Тот самый, который всегда горит у нее в глазах.', 'Однажды она оставила мне не просто банку опят, а маленький кусочек наших счастливых рабочих дней. Это бесценно и до сих пор греет душу.', 'В ней столько легкости, юмора и живости, что одним словом не описать. Ищи ту, у кого в глазах озорной огонек.'],
+    shard: 'Озорство', after: 'Увидишь озорной огонек в глазах, значит, это она.', hall: [
+      'Дорогая Ульяна, Богиня красоты и королева сердец.',
+      'Для начала хочется сказать, что я безумно благодарна предыдущему году за то, что он вписал в твой сценарий наше знакомство.',
+      'Я очень хочу, чтобы в твоей жизни было столько же тепла, сколько ты сама отдаёшь другим.',
+      'Чтобы тебя любили так, как ты заслуживаешь, чтобы рядом всегда были люди, с которыми можно быть настоящей, чтобы работа не съедала жизнь, а жизнь регулярно устраивала тебе приятные сюрпризы.',
+      'Чтобы ты много смеялась, много путешествовала, исполняла свои маленькие и огромные желания и иногда (всегда) просто останавливалась и думала: «Боже, как же хорошо я живу».',
+      'И я счастлива знать и видеть, что все это уже есть в твоей жизни!',
+      'Рада, что среди всех случайностей, рабочих чатов, созвонов и прочего корпоративного безумия мне каким-то образом посчастливилось повстречать тебя.',
+      'С днём рождения, самая прекрасная! Будь счастлива. Очень-очень🤍'
+    ] },
+  { id: 'e', name: 'Маша', look: 'masha', x: 22, y: 17,
+    lines: ['Я стерегу торт и жду принцессу. Без нее в королевстве стало холоднее, это чувствуют все.', 'Когда-то она была нашей старостой. Предложи мне выбрать снова, хоть в другой вселенной, я опять выберу ее.', 'Ее тепло чувствуется даже за три тысячи километров. Иди на это тепло, путник, и найдешь ее.'],
+    shard: 'Тепло', after: 'Чувствуешь, стало теплее? Значит, принцесса где-то рядом.', hall: 'Если в другой вселенной мне предложили выбрать старосту, я все равно бы выбрала Ульяну. Самую волшебную, добрую и согревающую на свете. Я чувствую твое тепло даже находясь за 3к км от дома❤️' },
+  // Семья Петруновских на своем участке: один осколок на троих, реплики идут по очереди сверху вниз
+  { id: 'fam', shard: 'Забота о близких', after: 'Мы всей семьей ждем принцессу на празднике.',
+    members: [
+      { name: 'Даша', look: 'dasha', x: 47, y: 14, volley: true, line: 'Я люблю нашу принцессу за то, что каждый раз, когда я с ней говорю, мне хочется улыбаться!', hall: 'Желаю здоровья, счастья, самореализации и свинок!' },
+      { name: 'Сергей', look: 'sergey', x: 43, y: 14, line: 'А я за то, что на нее всегда можно положиться.', hall: 'Ульяна, с днем рождения! Здоровья и радости.' },
+      { name: 'Оксана', look: 'oksana', x: 41, y: 15, line: 'Ульянка самая задорная и позитивная. Она всегда мне помогает и заряжает позитивом!', hall: 'Больше путешествий и радости от открытий!' }
+    ] }
+];
+
+/* Питомцы разбросаны по карте, узнают принцессу сразу и бегут следом до конца игры.
+   Когда собраны все, они начинают показывать дорогу к ближайшему несобранному цветку,
+   а в финальном письме появляется постскриптум. */
+const PIGS = [
+  { id: 'rosa', name: 'Роза', look: 'rosa', x: 11, y: 13, sound: 'bark', line: 'Вкусняшку!' },
+  { id: 'sara', name: 'Сара', look: 'sara', x: 28, y: 15, sound: 'meow', suitcase: true, line: 'Мау' },
+  { id: 'p1', name: 'Жужа (Кирпич)', look: 'pig1', x: 22, y: 28, dir: 'left', line: 'Огурок давай' },
+  { id: 'p2', name: 'Искорка', look: 'pig2', x: 35, y: 26, dir: 'left', hay: true, line: 'мяумяумяумяу' }
+];
+
+/* Граммофон в зале. По нажатию на него играет ваш аудиофайл вместо встроенной мелодии.
+   Положите файл в одну папку с игрой и укажите его имя. Подойдут mp3, m4a, ogg, wav. */
+const HALL_TRACK = { file: 'song.mp3', volume: 0.8 };
+
+/* Тот, кто ждет в зале: его реплики становятся главным поздравлением */
+const HUSBAND = { name: 'Юра', look: 'husband', lines: ['УЛЬКААА ПОЗДРАВЛЯЮ С ДР МОЯ ЛЮБИМКААА', 'В письме написал тебе поздравление…'] };
+
+/* ===================== ВНЕШНОСТЬ (цвета и детали) ===================== */
+const LOOKS = {
+  wanderer: { hood: '#6a4f8a', skin: '#f7d9c6', shoes: '#4a3028' },
+  // Принцесса под капюшоном (по фото): прямые русые волосы до плеч с пробором,
+  // серо-голубые глаза, коралловые губы, цепочка с кулоном.
+  // hairStyle: short | bob | mid | long | wavy | bun | beanie
+  princess: { hairStyle: 'mid', hair: '#a98562', hairTip: '#cdae88', skin: '#f7d9c6', eyes: '#7fa9bd', dress: '#e77fa8', top: '#e77fa8', shoes: '#b0486e', crown: true, lips: '#e2664f', necklace: true },
+  // Танечка: светлое каре с косой челкой, серо-голубые глаза, серый жилет поверх белой кофты
+  A: { hairStyle: 'bob', hair: '#dfbe72', hairTip: '#f0dc9f', skin: '#f6cfb4', eyes: '#7f9fb5', lips: '#d9705c', top: '#f4f1ea', vest: '#8c8c8c', bottom: '#5a5f6e', shoes: '#33262a' },
+  // Ксюша Тугеева: длинные русые волосы, розовый костюм (жакет и брюки) с белым топом
+  B: { hairStyle: 'long', hair: '#b98a55', hairTip: '#d6ad78', skin: '#f6d3bd', eyes: '#5b8fc0', top: '#f08db8', suit: '#ffffff', bottom: '#f08db8', shoes: '#f4efe6', lips: '#c0566a' },
+  // Дина Бигушева (фото 3): волнистые золотистые волосы со светлыми концами, светлый верх, широкая улыбка
+  C: { hairStyle: 'wavy', hair: '#c9954e', hairTip: '#efd08c', skin: '#f0bd9c', eyes: '#6d9fc4', top: '#f3ead8', bottom: '#7fa0c8', shoes: '#8a5a3a', lips: '#c96a6e', smile: 'big' },
+  // Аня Сырцева: длинные прямые каштановые волосы с пробором, серо-голубые глаза,
+  // белое поло с воротником и бордовой буквой H, белая юбка
+  anya: { hairStyle: 'long', hair: '#7b4a36', hairTip: '#96604a', skin: '#f6d6c2', eyes: '#7fa6b5', lips: '#d9735f', top: '#f4efdf', dress: '#fbf8ee', shoes: '#d9d2c2', collar: '#fffdf2', patch: '#8a2f45' },
+  // Маша Бусурина: темные волнистые волосы до плеч, темные очки в золотой оправе,
+  // голубая льняная рубашка поверх белой футболки, голубые шорты
+  masha: { hairStyle: 'wavy', hairLen: 27, hair: '#4a2f25', hairTip: '#5f3e31', skin: '#f0c4a4', eyes: '#4a3a2a', lips: '#c96a6e', shades: true, top: '#a9c0e8', inner: '#ffffff', bottom: '#a9c0e8', shorts: true, shoes: '#d9c2a0' },
+  // Даша Петруновская: длинные темные волосы с челкой-шторкой, серый свитшот, цепочка
+  dasha: { hairStyle: 'long', hair: '#4a2f25', hairTip: '#62402f', skin: '#f3cdb6', eyes: '#6f8a8f', lips: '#c96a6e', top: '#cfcac4', bottom: '#4a4f66', shoes: '#f4efe6', necklace: true },
+  // Сергей Петруновский: короткие белые волосы, загар, темно-синее поло с белой и красной полосками
+  sergey: { hairStyle: 'short', hair: '#ecebe6', hairTip: '#ffffff', skin: '#dba27c', eyes: '#6a5a4a', lips: '#b0685a', top: '#2a2f4f', stripes: ['#f4f1ea', '#e2445c'], bottom: '#5b5f6e', shoes: '#33262a' },
+  // Оксана Петруновская: кудрявые пепельно-светлые волосы до плеч, голубые глаза, широкая улыбка, голубое платье, цепочка
+  oksana: { hairStyle: 'wavy', hairLen: 27, hair: '#c9b088', hairTip: '#eadfc4', skin: '#e9b48f', eyes: '#6fa8d0', lips: '#d98a8a', smile: 'big', top: '#a9c6e0', dress: '#a9c6e0', shoes: '#d9c2a0', necklace: true },
+  // Муж: короткие каштановые волосы, борода, голубые глаза
+  husband: { hairStyle: 'short', hair: '#6b4a2f', skin: '#eec09a', beard: true, eyes: '#3f9be0', top: '#c9573c', bottom: '#3a3f55', shoes: '#2a2228' },
+  // Кошка Сара: черная, маленькие сложенные уши, желто-зеленые глаза
+  sara: { cat: true, black: '#2a2531', eyes: '#d6dc52' },
+  // Папильон Роза: черные уши-бабочки с бахромой, белая проточина, белая мордочка и грудка, карие глаза
+  rosa: { dog: true, black: '#231f29', white: '#fbf8f2', eyes: '#c9722e' },
+  // Жужа: рыже-оранжевая голова без проточины, белый пояс посередине, рыжая спина
+  pig1: { pig: true, head: '#c9702f', mid: '#fbf7ef', rump: '#c9702f', ear: '#a3561f', faceL: '#c9702f', faceR: '#c9702f', bib: '#fbf7ef' },
+  // Фото 5: белая мордочка, серо-коричневое пятно у глаза, кремовые плечи, серый агути
+  pig2: { pig: true, head: '#f7f3ea', mid: '#e9c08e', rump: '#9b958c', ear: '#7b6a5e', faceL: '#7b6a5e', faceR: '#f7f3ea', blaze: '#f7f3ea', fleck: true }
+};
+
+</script>
+<script>
+/* ===================== ГРАФИКА: всё рисуется кодом, внешних картинок нет ===================== */
+const T = 16;
+const OUT = '#3b2338';
+const GOLD = '#f5c542', GOLD2 = '#c98a1c';
+function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function rng(seed) { let a = seed >>> 0; return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hash2(x, y, s) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 982451653)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function hex(c) { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgb(r, g, b) { return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join(''); }
+function shade(c, a) { const [r, g, b] = hex(c); return a < 0 ? rgb(r * (1 + a), g * (1 + a), b * (1 + a)) : rgb(r + (255 - r) * a, g + (255 - g) * a, b + (255 - b) * a); }
+function mix(c1, c2, t) { const a = hex(c1), b = hex(c2); return rgb(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t); }
+function vnoise(x, y, s) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi; const a = hash2(xi, yi, s), b = hash2(xi + 1, yi, s), c = hash2(xi, yi + 1, s), d = hash2(xi + 1, yi + 1, s); const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+function pen(c) { const g = c.getContext('2d'); const p = (col, x, y, w = 1, h = 1) => { g.fillStyle = col; g.fillRect(x, y, w, h); }; p.clear = (x, y, w = 1, h = 1) => g.clearRect(x, y, w, h); p.g = g; return p; }
+function outline(src, color = OUT) {
+  const w = src.width, h = src.height, out = mk(w + 2, h + 2), g = out.getContext('2d');
+  const d = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const a = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 40;
+  g.fillStyle = color;
+  for (let y = -1; y <= h; y++) for (let x = -1; x <= w; x++) if (!a(x, y) && (a(x + 1, y) || a(x - 1, y) || a(x, y + 1) || a(x, y - 1))) g.fillRect(x + 1, y + 1, 1, 1);
+  g.drawImage(src, 1, 1); return out;
+}
+function flip(src) { const c = mk(src.width, src.height), g = c.getContext('2d'); g.translate(src.width, 0); g.scale(-1, 1); g.drawImage(src, 0, 0); return c; }
+
+/* ---------- земля ---------- */
+const PAL = {
+  g1: '#74c44c', g2: '#62b041', g3: '#8ad65f', gd: '#4f9a38',
+  d1: '#e3ba7c', d2: '#d3a466', d3: '#f0cf95', dd: '#b88a54',
+  w1: '#52aee6', w2: '#4298d8', w3: '#a6dcf7', w4: '#2f76ba', bank: '#9a7446', bank2: '#7b5a34',
+  s1: '#bdb7b0', s2: '#9d968f', s3: '#d5d0c9',
+  t1: '#8a5a36', t2: '#74482a'
+};
+function grassPx(X, Y) { const n = vnoise(X / 7, Y / 7, 1), h = hash2(X, Y, 5); if (h < 0.03) return PAL.gd; if (h > 0.975) return PAL.g3; return n > 0.64 ? PAL.g2 : n < 0.24 ? PAL.g3 : PAL.g1; }
+function dirtPx(X, Y) { const n = vnoise(X / 6, Y / 6, 2), h = hash2(X, Y, 6); if (h < 0.03) return PAL.dd; if (h > 0.97) return PAL.d3; return n > 0.68 ? PAL.d2 : PAL.d1; }
+function edge(map, tx, ty, lx, ly, same, cr = 4) {
+  const L = !same(tx - 1, ty), R = !same(tx + 1, ty), U = !same(tx, ty - 1), D = !same(tx, ty + 1);
+  let d = 99, key = 0, top = false;
+  if (L && lx < d) { d = lx; key = ly + ty * 16 + 1000; }
+  if (R && 15 - lx < d) { d = 15 - lx; key = ly + ty * 16 + 2000; }
+  if (U && ly < d) { d = ly; key = lx + tx * 16 + 3000; top = true; }
+  if (D && 15 - ly < d) { d = 15 - ly; key = lx + tx * 16 + 4000; top = false; }
+  let corner = (L && U && lx + ly < cr) || (R && U && (15 - lx) + ly < cr) || (L && D && lx + (15 - ly) < cr) || (R && D && (15 - lx) + (15 - ly) < cr);
+  const diag = (ox, oy, dx, dy) => { if (!same(tx + ox, ty + oy)) { const m = Math.max(dx, dy); if (m < d) { d = m; key = 5000 + tx * 7 + ty * 13 + dx - dy; top = false; } } };
+  if (!L && !U) diag(-1, -1, lx, ly); if (!R && !U) diag(1, -1, 15 - lx, ly); if (!L && !D) diag(-1, 1, lx, 15 - ly); if (!R && !D) diag(1, 1, 15 - lx, 15 - ly);
+  return { d, key, corner, top };
+}
+function renderGround(map) {
+  const W = map.w * T, H = map.h * T, c = mk(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), data = img.data;
+  const at = (x, y) => (x < 0 || y < 0 || x >= map.w || y >= map.h) ? map.fill : map.ground[y][x];
+  for (let Y = 0; Y < H; Y++) for (let X = 0; X < W; X++) {
+    const tx = X >> 4, ty = Y >> 4, lx = X & 15, ly = Y & 15, t = at(tx, ty); let col;
+    if (t === 'g') col = grassPx(X, Y);
+    else if (t === 'p' || t === 't' || t === 'S') {
+      const e = edge(map, tx, ty, lx, ly, (x, y) => { const q = at(x, y); return q !== 'g'; });
+      const wob = 1 + ((hash2(e.key >> 1, 3, 7) * 2.4) | 0);
+      if (e.corner || e.d < wob) col = grassPx(X, Y);
+      else if (e.d < wob + 1) col = PAL.dd;
+      else if (t === 't') col = ((Y & 3) === 0) ? PAL.t2 : (hash2(X, Y, 9) < 0.08 ? PAL.t2 : PAL.t1);
+      else if (t === 'S') col = hash2(X, Y, 13) < 0.07 ? '#e2cb92' : hash2(X, Y, 14) > 0.95 ? '#fff6d6' : '#f3e0b0';
+      else col = dirtPx(X, Y);
+    } else if (t === 'w') {
+      const e = edge(map, tx, ty, lx, ly, (x, y) => at(x, y) === 'w', 9);
+      const wob = 2 + ((hash2(e.key >> 1, 4, 8) * 1.6) | 0), bw = e.top ? wob + 3 : wob;
+      if (e.corner) col = grassPx(X, Y);
+      else if (e.d < 1) col = PAL.gd;
+      else if (e.d < bw) col = e.d < bw - 1 ? PAL.bank : PAL.bank2;
+      else if (e.d < bw + 2) col = PAL.w4;
+      else col = vnoise(X / 9, Y / 5, 3) > 0.66 ? PAL.w2 : PAL.w1;
+    } else if (t === 's') {
+      const e = edge(map, tx, ty, lx, ly, (x, y) => at(x, y) !== 'g');
+      const wob = 1 + ((hash2(e.key >> 1, 5, 9) * 2.2) | 0);
+      if (e.corner || e.d < wob) col = grassPx(X, Y);
+      else { const row = Y >> 3, bx = (X + (row & 1) * 8) & 15; col = ((Y & 7) === 0 || bx === 0) ? PAL.s2 : (hash2((X + (row & 1) * 8) >> 4, row, 11) > 0.7 ? PAL.s3 : (hash2(X, Y, 12) < 0.04 ? PAL.s2 : PAL.s1)); }
+    } else if (t === 'F') {
+      const row = Y >> 3, bx = (X + (row % 3) * 11) % 40, pv = hash2(((X + (row % 3) * 11) / 40) | 0, row, 21);
+      const base = pv > 0.66 ? '#c98d55' : pv > 0.33 ? '#bd8049' : '#b17541';
+      col = ((Y & 7) === 7 || bx === 0) ? '#8c5a30' : (hash2(X >> 2, Y, 22) < 0.05 ? shade(base, -0.1) : base);
+    } else if (t === 'C') {
+      const e = edge(map, tx, ty, lx, ly, (x, y) => at(x, y) === 'C');
+      if (e.d < 1) col = '#7d1f33'; else if (e.d < 3) col = GOLD; else if (e.d < 4) col = '#7d1f33';
+      else col = (((X + Y) & 7) === 0 || ((X - Y) & 7) === 0) ? '#c9455c' : '#b3324a';
+    } else col = '#2a1c2a';
+    const o = (Y * W + X) * 4, cc = hex(col); data[o] = cc[0]; data[o + 1] = cc[1]; data[o + 2] = cc[2]; data[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  // мелкий декор на траве: пучки и крошечные цветы
+  const p = pen(c), r = rng(map.seed || 7);
+  for (let ty = 0; ty < map.h; ty++) for (let tx = 0; tx < map.w; tx++) {
+    const t = at(tx, ty), x0 = tx * T, y0 = ty * T;
+    if (t === 'g') {
+      if (r() < 0.3) { const x = x0 + 2 + (r() * 11 | 0), y = y0 + 4 + (r() * 9 | 0); p(PAL.gd, x, y, 1, 2); p(PAL.gd, x + 2, y - 1, 1, 3); p(PAL.gd, x + 4, y, 1, 2); p(PAL.g3, x + 1, y - 1, 1, 1); }
+      if (r() < 0.09) { const x = x0 + 3 + (r() * 9 | 0), y = y0 + 3 + (r() * 9 | 0), fc = ['#ffffff', '#ffe36e', '#f7a8c8', '#c9a8f5'][r() * 4 | 0]; p(fc, x, y - 1); p(fc, x - 1, y); p(fc, x + 1, y); p(fc, x, y + 1); p('#f2b03a', x, y); }
+    } else if (t === 't') {
+      for (const ox of [4, 11]) { const x = x0 + ox, y = y0 + 9; p('#3f8a2e', x, y - 3, 1, 4); p('#5fbf45', x - 2, y - 4, 2, 2); p('#5fbf45', x + 1, y - 5, 2, 2); p('#8ad65f', x - 1, y - 6, 2, 1); }
+    } else if (t === 'p' && r() < 0.07) { const x = x0 + 4 + (r() * 8 | 0), y = y0 + 4 + (r() * 8 | 0); p(PAL.dd, x, y, 3, 2); p('#cfc6b8', x, y, 2, 1); }
+  }
+  return c;
+}
+
+/* ---------- объекты ---------- */
+function makeTree(seed, kind) {
+  const c = mk(32, 46), p = pen(c), r = rng(seed);
+  const pal = kind === 'blossom' ? ['#c9588a', '#e57aa6', '#f5a3c4', '#fbd0e0'] : kind === 'dark' ? ['#2f7a3c', '#3f9448', '#57ad54', '#7cc86a'] : ['#3a8a35', '#4ea541', '#6cc04f', '#96da6a'];
+  p('#8a5a34', 13, 30, 6, 15); p('#6f4526', 13, 30, 2, 15); p('#a87345', 17, 33, 1, 9); p('#8a5a34', 12, 43, 1, 2); p('#8a5a34', 19, 43, 1, 2); p('#6f4526', 14, 30, 4, 2);
+  const blobs = [[16, 17, 12], [8, 21, 7], [24, 21, 7], [16, 9, 8], [10, 12, 7], [22, 12, 7]].map(b => [b[0] + (r() * 2 - 1), b[1] + (r() * 2 - 1), b[2]]);
+  for (let y = 0; y < 34; y++) for (let x = 0; x < 32; x++) {
+    let inside = false, best = 9; for (const b of blobs) { const q = Math.hypot(x - b[0], y - b[1]) / b[2]; if (q <= 1) inside = true; best = Math.min(best, q); }
+    if (!inside) continue;
+    let l = 0.5 - (x - 16) * 0.018 - (y - 16) * 0.028 + (vnoise(x / 3.2, y / 3.2, seed) - 0.5) * 0.55; if (best > 0.82 && y > 18) l -= 0.25;
+    p(l > 0.78 ? pal[3] : l > 0.52 ? pal[2] : l > 0.3 ? pal[1] : pal[0], x, y);
+  }
+  if (kind === 'blossom') for (let i = 0; i < 9; i++) { const x = 5 + (r() * 22 | 0), y = 4 + (r() * 24 | 0); p('#fff3f8', x, y); }
+  return outline(c);
+}
+function makeBush(seed) {
+  const c = mk(16, 14), p = pen(c), r = rng(seed), pal = ['#35803a', '#49a044', '#66bb52', '#8fd866'];
+  for (let y = 0; y < 14; y++) for (let x = 0; x < 16; x++) { if (Math.hypot((x - 7.5) / 8, (y - 8) / 6.5) > 1 && Math.hypot(x - 5, y - 5) > 4.5 && Math.hypot(x - 11, y - 5) > 4) continue; const l = 0.55 - (x - 8) * 0.03 - (y - 7) * 0.05 + (vnoise(x / 2.5, y / 2.5, seed) - 0.5) * 0.5; p(l > 0.8 ? pal[3] : l > 0.55 ? pal[2] : l > 0.3 ? pal[1] : pal[0], x, y); }
+  if (r() < 0.6) for (let i = 0; i < 4; i++) { const x = 3 + (r() * 10 | 0), y = 4 + (r() * 7 | 0); p('#e2445c', x, y, 2, 2); p('#ff9aa8', x, y); }
+  return outline(c);
+}
+function makeRock(seed) { const c = mk(14, 10), p = pen(c); for (let y = 0; y < 10; y++) for (let x = 0; x < 14; x++) { if (Math.hypot((x - 6.5) / 7, (y - 5.5) / 4.8) > 1) continue; const l = 0.5 - (x - 7) * 0.04 - (y - 5) * 0.08 + (hash2(x >> 1, y >> 1, seed) - 0.5) * 0.2; p(l > 0.72 ? '#d9d6d0' : l > 0.45 ? '#b3aea7' : '#8d877f', x, y); } return outline(c); }
+function makeHouse(roof, wall) {
+  const c = mk(80, 76), p = pen(c), r2 = shade(roof, -0.22), r3 = shade(roof, 0.18), beam = '#7a4a2a', w2 = shade(wall, -0.1);
+  p(wall, 4, 40, 72, 31); for (let i = 0; i < 40; i++) { const x = 6 + (hash2(i, 1, 31) * 68 | 0), y = 44 + (hash2(i, 2, 31) * 24 | 0); p(w2, x, y, 2, 1); }
+  p('#9d968f', 3, 70, 74, 6); for (let x = 3; x < 77; x += 8) p('#77716c', x, 70, 1, 6); p('#77716c', 3, 73, 74, 1); p('#c9c4bd', 4, 70, 72, 1);
+  p(beam, 4, 40, 3, 30); p(beam, 73, 40, 3, 30); p(beam, 4, 46, 72, 2); p(beam, 28, 46, 2, 24); p(beam, 50, 46, 2, 24);
+  // дверь
+  p('#5e3520', 33, 50, 14, 22); p('#a8653a', 35, 52, 10, 20); p('#8a4f2c', 39, 52, 1, 20); p('#c98550', 35, 52, 10, 1); p(GOLD, 42, 62, 2, 2); p('#5e3520', 35, 56, 10, 1);
+  p('#c9c4bd', 31, 72, 18, 4); p('#9d968f', 31, 75, 18, 1);
+  // окна
+  for (const x of [10, 56]) { p('#5e3520', x, 51, 14, 13); p('#8fd0f5', x + 2, 53, 10, 9); p('#c8ecff', x + 2, 53, 4, 3); p('#5e3520', x + 6, 53, 2, 9); p('#5e3520', x + 2, 57, 10, 1); p('#7a4a2a', x - 1, 64, 16, 3); for (let i = 0; i < 5; i++) { p('#49a044', x + i * 3, 62, 2, 2); p(['#e2445c', '#ffe36e', '#f7a8c8'][i % 3], x + i * 3 + ((i & 1) ? 0 : 1), 61, 1, 1); } }
+  // крыша
+  for (let y = 6; y <= 44; y++) { const inset = Math.round(12 * (1 - (y - 6) / 38)), row = (y - 6) / 5 | 0; for (let x = inset; x < 80 - inset; x++) { const sx = (x + (row & 1) * 4) % 8; p(((y - 6) % 5 === 4) ? r2 : (sx === 0 ? r2 : (sx === 1 && (y - 6) % 5 === 0 ? r3 : roof)), x, y); } }
+  p(r3, 12, 6, 56, 1); p(r2, 0, 43, 80, 2); p(shade(roof, -0.4), 0, 45, 80, 1);
+  // труба
+  p('#b5553c', 58, 0, 8, 13); p('#8e3f2c', 58, 4, 8, 1); p('#8e3f2c', 58, 8, 8, 1); p('#8e3f2c', 62, 0, 1, 4); p('#8e3f2c', 60, 5, 1, 3); p('#d9d6d0', 57, 0, 10, 2);
+  return outline(c);
+}
+function makeCastle(open) {
+  const c = mk(256, 128), p = pen(c);
+  const brick = (x0, y0, w, h, a, b, l, seed) => { p(a, x0, y0, w, h); for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const row = (y - y0) >> 3, bx = (x - x0 + (row & 1) * 8) & 15; if (((y - y0) & 7) === 7 || bx === 0) p(b, x, y); else if (hash2(((x - x0 + (row & 1) * 8) >> 4), row, seed) > 0.75) p(l, x, y); } };
+  const cren = (x0, y0, w, a, b) => { for (let x = x0; x < x0 + w; x += 16) { p(a, x, y0, 10, 8); p(b, x, y0 + 7, 10, 1); p(shade(a, 0.15), x, y0, 10, 1); } };
+  // стена
+  brick(16, 44, 224, 84, '#b9b4ad', '#96908a', '#cfcac4', 41); cren(19, 36, 220, '#b9b4ad', '#96908a');
+  // башни
+  for (const x0 of [0, 216]) { brick(x0, 26, 40, 102, '#aaa59f', '#88827c', '#c2bdb7', 42 + x0); cren(x0 + 2, 18, 38, '#aaa59f', '#88827c'); for (let y = 0; y <= 18; y++) { const hw = Math.round(3 + y * 1.1); for (let x = 20 - hw; x < 20 + hw; x++) p(((x + y) % 5 === 0) ? '#56408f' : (x < 20 - hw * 0.3 ? '#8a6fd0' : '#7358b8'), x0 + x, y); } p('#2a2233', x0 + 17, 52, 6, 14); p('#2a2233', x0 + 18, 50, 4, 2); p('#2a2233', x0 + 17, 90, 6, 14); p('#2a2233', x0 + 18, 88, 4, 2); }
+  // надвратная башня
+  brick(96, 10, 64, 118, '#c6c1ba', '#a39d96', '#dbd7d1', 44); cren(98, 2, 62, '#c6c1ba', '#a39d96');
+  // плющ
+  for (let i = 0; i < 160; i++) { const x = 44 + (hash2(i, 3, 51) * 46 | 0), y = 128 - (hash2(i, 4, 51) ** 2 * 60 | 0) - 2; p(hash2(i, 5, 51) > 0.5 ? '#4ea541' : '#3a8a35', x, y, 2, 2); }
+  for (let i = 0; i < 90; i++) { const x = 176 + (hash2(i, 3, 52) * 30 | 0), y = 128 - (hash2(i, 4, 52) ** 2 * 40 | 0) - 2; p(hash2(i, 5, 52) > 0.5 ? '#4ea541' : '#3a8a35', x, y, 2, 2); }
+  // окна стены
+  for (const x of [56, 76, 176, 196]) { p('#2a2233', x, 62, 5, 12); p('#2a2233', x + 1, 60, 3, 2); p('#f5d26b', x + 1, 66, 3, 6); }
+  // знамена
+  for (const x of [100, 147]) { p(GOLD2, x - 1, 40, 11, 2); p('#c0304a', x, 42, 9, 30); p('#e2566c', x + 1, 42, 2, 30); p(GOLD, x, 44, 9, 1); p(GOLD, x + 3, 52, 3, 3); p(GOLD, x + 4, 51, 1, 5); p.clear(x + 3, 70, 3, 2); p.clear(x + 4, 68, 1, 2); }
+  // сердце над воротами
+  const hx = 122, hy = 22; p(GOLD2, hx - 3, hy - 3, 18, 18); p('#fff4c9', hx - 2, hy - 2, 16, 16); for (const [x, y, w] of [[1, 1, 4], [7, 1, 4], [0, 2, 12], [0, 3, 12], [0, 4, 12], [1, 5, 10], [2, 6, 8], [3, 7, 6], [4, 8, 4], [5, 9, 2]]) p('#e2445c', hx + x, hy + y, w, 1); p('#ff9aa8', hx + 2, hy + 2, 2, 1);
+  // ворота: арка 32px = тайлы 19 и 20
+  for (let y = 80; y < 128; y++) for (let x = 108; x < 148; x++) { const inArch = y >= 100 ? (x >= 110 && x < 146) : Math.hypot(x - 127.5, y - 100) <= 18; if (inArch) p('#77716c', x, y); }
+  for (let y = 82; y < 128; y++) for (let x = 112; x < 144; x++) {
+    const inside = y >= 100 || Math.hypot(x - 127.5, y - 100) <= 16; if (!inside) continue;
+    if (open) { const t = (y - 82) / 46; p(t > 0.8 ? '#f7c868' : t > 0.6 ? '#b9783c' : t > 0.35 ? '#5a3326' : '#2a1820', x, y); }
+    else { const plank = (x - 112) % 6 === 0 || x === 127 || x === 128; p(plank ? '#5e3520' : ((x + y) % 11 === 0 ? '#b77443' : '#9a5c34'), x, y); }
+  }
+  if (!open) { p('#4a4650', 112, 96, 32, 3); p('#4a4650', 112, 116, 32, 3); p(GOLD, 124, 106, 3, 4); p(GOLD, 129, 106, 3, 4); }
+  else { p('#fff0b0', 118, 122, 20, 6); p('#f7c868', 114, 124, 28, 4); }
+  return outline(c);
+}
+function makeBrazier(f) { const c = mk(10, 20), p = pen(c); p('#4a4650', 4, 10, 2, 9); p('#4a4650', 2, 18, 6, 2); p('#6b6672', 1, 7, 8, 3); p('#4a4650', 2, 10, 6, 1); if (f) { p('#f08a2c', 2, 2, 6, 5); p('#f7c842', 3, 3, 4, 4); p('#fff3b0', 4, 5, 2, 2); p('#f08a2c', 4, 0, 2, 2); } else { p('#f08a2c', 2, 3, 6, 4); p('#f7c842', 3, 2, 4, 5); p('#fff3b0', 4, 4, 2, 3); p('#f08a2c', 5, 0, 2, 2); p('#f08a2c', 2, 1, 1, 2); } return outline(c); }
+function makeMirror(full) {
+  const c = mk(18, 34), p = pen(c);
+  for (let y = 0; y < 26; y++) for (let x = 0; x < 18; x++) { const q = Math.hypot((x - 8.5) / 8.5, (y - 12.5) / 13); if (q <= 1) p(q > 0.86 ? GOLD2 : GOLD, x, y); }
+  for (let y = 0; y < 26; y++) for (let x = 0; x < 18; x++) { const q = Math.hypot((x - 8.5) / 6, (y - 12.5) / 10.2); if (q <= 1) { if (full) p((x + y) % 9 < 2 ? '#ffffff' : (y < 9 ? '#d6f1ff' : '#a9dcf7'), x, y); else p(((x * 3 + y) % 7 === 0) ? '#4a4368' : '#2c2742', x, y); } }
+  if (!full) { p('#6b6490', 8, 6, 1, 5); p('#6b6490', 9, 10, 1, 4); p('#6b6490', 7, 13, 1, 5); p('#6b6490', 10, 13, 3, 1); }
+  p('#fff4c9', 4, 2, 3, 1); p('#fff4c9', 2, 5, 1, 3); p('#e2445c', 8, 0, 2, 2);
+  p(GOLD2, 7, 26, 4, 5); p(GOLD, 8, 26, 1, 5); p(GOLD2, 3, 31, 12, 3); p(GOLD, 4, 31, 10, 1);
+  return outline(c);
+}
+function makeFeastTable() {
+  const c = mk(64, 30), p = pen(c);
+  p('#7a4a2a', 3, 22, 3, 8); p('#7a4a2a', 58, 22, 3, 8);
+  p('#fbf6ea', 0, 12, 64, 12); p('#e6dcc8', 0, 22, 64, 2); for (let x = 0; x < 64; x += 8) { p('#fbf6ea', x + 1, 24, 6, 2); p('#e6dcc8', x + 2, 26, 4, 1); } p('#e89ab0', 0, 14, 64, 1);
+  // торт
+  p('#f7a8c8', 24, 8, 16, 6); p('#fde3ee', 24, 8, 16, 2); p('#f7a8c8', 27, 3, 10, 5); p('#fde3ee', 27, 3, 10, 2); for (const x of [29, 32, 35]) { p('#fff', x, 0, 1, 3); p('#f7c842', x, -1 + 1, 1, 1); } p('#e2445c', 25, 11, 2, 2); p('#e2445c', 31, 11, 2, 2); p('#e2445c', 37, 11, 2, 2);
+  // блюда
+  p('#d9d6d0', 5, 11, 12, 3); p('#c98550', 7, 8, 8, 4); p('#e8b06a', 8, 8, 6, 1); p('#d9d6d0', 46, 11, 12, 3); p('#e2445c', 48, 9, 3, 3); p('#f7c842', 52, 9, 3, 3); p('#7fc45a', 50, 7, 3, 3);
+  p('#3f7a4a', 19, 5, 3, 9); p('#3f7a4a', 20, 3, 1, 2); p('#e6dcc8', 19, 8, 3, 3); p('#8a6fd0', 42, 9, 3, 5); p('#c9b8f0', 42, 9, 3, 1);
+  return outline(c);
+}
+function makeSideTable() { const c = mk(30, 72), p = pen(c); p('#fbf6ea', 0, 0, 30, 64); p('#e6dcc8', 0, 62, 30, 2); p('#e89ab0', 2, 0, 1, 64); p('#e89ab0', 27, 0, 1, 64); p('#7a4a2a', 2, 64, 3, 8); p('#7a4a2a', 25, 64, 3, 8); const food = [['#c98550', '#e8b06a'], ['#e2445c', '#ff9aa8'], ['#f7c842', '#fff3b0'], ['#7fc45a', '#b6e58f']]; for (let i = 0; i < 4; i++) { const y = 5 + i * 15; p('#d9d6d0', 7, y + 5, 16, 4); p(food[i][0], 9, y + 1, 12, 6); p(food[i][1], 10, y + 1, 10, 2); } return outline(c); }
+function makeWell() { const c = mk(20, 28), p = pen(c); p('#8e3f2c', 0, 0, 20, 5); p('#b5553c', 1, 0, 18, 3); p('#7a4a2a', 2, 5, 2, 12); p('#7a4a2a', 16, 5, 2, 12); p('#5e3520', 4, 8, 12, 1); p('#c9c4bd', 9, 9, 2, 5); p('#9d968f', 1, 16, 18, 12); p('#bdb7b0', 1, 16, 18, 3); p('#2f76ba', 3, 17, 14, 2); for (let x = 1; x < 19; x += 6) p('#77716c', x, 19, 1, 9); p('#77716c', 1, 23, 18, 1); return outline(c); }
+function makeHutch() { const c = mk(22, 20), p = pen(c); p('#a8653a', 1, 8, 20, 12); p('#8a4f2c', 1, 12, 20, 1); p('#8a4f2c', 1, 16, 20, 1); for (let y = 0; y < 9; y++) p(y % 3 === 2 ? '#8e3f2c' : '#c9573c', 9 - y, y, 4 + y * 2, 1); for (let y = 11; y < 20; y++) for (let x = 7; x < 15; x++) if (y >= 14 || Math.hypot(x - 10.5, y - 14) <= 4) p('#2a1820', x, y); p('#f2d27a', 8, 18, 6, 2); return outline(c); }
+function makeHay() { const c = mk(16, 10), p = pen(c); for (let y = 0; y < 10; y++) for (let x = 0; x < 16; x++) if (Math.hypot((x - 7.5) / 8, (y - 9) / 9) <= 1) p(hash2(x, y, 61) > 0.6 ? '#f7dd8a' : hash2(x, y, 62) > 0.7 ? '#c9a24a' : '#e8c463', x, y); return outline(c, '#8a6a2a'); }
+function makeSign() { const c = mk(14, 18), p = pen(c); p('#7a4a2a', 6, 9, 2, 9); p('#c98550', 0, 0, 14, 10); p('#a8653a', 0, 8, 14, 2); p('#7a4a2a', 2, 3, 10, 1); p('#7a4a2a', 2, 5, 7, 1); return outline(c); }
+function makeFence() { const c = mk(16, 14), p = pen(c); p('#c98550', 0, 4, 16, 2); p('#c98550', 0, 9, 16, 2); p('#a8653a', 0, 5, 16, 1); p('#a8653a', 0, 10, 16, 1); for (const x of [2, 10]) { p('#b77443', x, 0, 3, 14); p('#8a4f2c', x + 2, 1, 1, 13); p('#d99a62', x, 0, 3, 1); } return outline(c); }
+function makeHallWall(w) {
+  const c = mk(w, 48), p = pen(c);
+  for (let y = 0; y < 44; y++) for (let x = 0; x < w; x++) { const row = y >> 3, bx = (x + (row & 1) * 8) & 15; p(((y & 7) === 7 || bx === 0) ? '#7f7a8c' : (hash2((x + (row & 1) * 8) >> 4, row, 71) > 0.7 ? '#b3aec2' : '#9c97ad'), x, y); }
+  p('#5e3520', 0, 44, w, 4); p('#8a4f2c', 0, 44, w, 1);
+  for (const x of [40, w - 62]) { for (let y = 6; y < 36; y++) for (let xx = 0; xx < 22; xx++) { const ins = y >= 17 || Math.hypot(xx - 10.5, y - 17) <= 11; if (ins) p((xx === 0 || xx === 21 || xx === 10 || xx === 11 || y === 35 || y === 22) ? '#5a556b' : (y < 20 ? '#c8ecff' : '#8fd0f5'), x + xx, y); } }
+  for (const x of [14, w / 2 - 5, w - 24]) { p(GOLD2, x - 1, 6, 12, 2); p('#c0304a', x, 8, 10, 26); p('#e2566c', x + 1, 8, 2, 26); p(GOLD, x + 3, 16, 4, 4); p.clear(x + 4, 32, 2, 2); }
+  const cols = ['#f7c842', '#e2445c', '#52aee6', '#7fc45a', '#f7a8c8', '#8a6fd0'];
+  for (let x = 0; x < w; x += 8) { const sag = Math.round(Math.sin((x / w) * Math.PI * 3) * 2) + 3; p('#fff', x, sag, 8, 1); for (let i = 0; i < 5; i++) p(cols[(x / 8) % 6 | 0], x + 1 + (i > 2 ? i - 2 : 0), sag + 1 + i, Math.max(1, 6 - i * 2 + (i > 2 ? 2 : 0)), 1); }
+  return c;
+}
+function makeFlower(i, f) { const c = mk(9, 12), p = pen(c), col = ['#f77fb0', '#ffd84a', '#7fb8ff', '#ffffff', '#c59af7'][i % 5]; p('#3f8a2e', 4, 6, 1, 6); p('#5fbf45', 2, 8, 2, 1); p('#5fbf45', 5, 9, 2, 1); const o = f ? 0 : 0; p(col, 3, 1 + o, 3, 5); p(col, 2, 2 + o, 5, 3); p(shade(col, -0.18), 3, 5 + o, 3, 1); p('#f2b03a', 4, 3 + o, 1, 1); p('#fff', 3, 2 + o, 1, 1); return outline(c); }
+function makeShard(n = 0) { const c = mk(10, 12), p = pen(c); const rows = [[4, 2], [3, 4], [2, 5], [2, 6], [1, 7], [1, 7], [2, 6], [2, 5], [3, 4], [4, 3], [4, 2], [5, 1]]; rows.forEach((r, y) => p('#a9dcf7', r[0], y, r[1], 1)); p('#ffffff', 4, 1, 1, 4); p('#ffffff', 3, 3, 1, 2); p('#6fb6e0', 6, 5, 2, 4); p('#6fb6e0', 5, 9, 1, 2); return outline(c); }
+function makeBang() { const c = mk(7, 10), p = pen(c); p('#fff', 0, 0, 7, 8); p('#fff', 2, 8, 3, 1); p('#fff', 3, 9, 1, 1); p('#e2445c', 3, 1, 1, 4); p('#e2445c', 3, 6, 1, 1); return outline(c); }
+function makeHeartIcon() { const c = mk(9, 8), p = pen(c); for (const [x, y, w] of [[1, 0, 3], [5, 0, 3], [0, 1, 9], [0, 2, 9], [0, 3, 9], [1, 4, 7], [2, 5, 5], [3, 6, 3], [4, 7, 1]]) p('#e2445c', x, y, w, 1); p('#ff9aa8', 1, 1, 2, 1); return outline(c); }
+
+/* ---------- персонажи: параметрический спрайт 16x24 ---------- */
+const EYE = '#2b1b2e';
+function charFrame(L, dir, f, o = {}) {
+  const c = mk(16, 24), p = pen(c);
+  const sk = L.skin || '#f2c9a8', sk2 = shade(sk, -0.14), hr = L.hair || '#6b4a2f', hr2 = shade(hr, -0.2), hr3 = L.hairTip || shade(hr, 0.22);
+  const tp = L.top || '#4a78b8', tp2 = shade(tp, -0.18), bt = L.bottom || '#4a4f66', bt2 = shade(bt, -0.18), sh = L.shoes || '#4a3028';
+  const st = L.hairStyle || 'short', blush = mix(sk, '#f07070', 0.45), mouth = L.lips || shade(sk, -0.35);
+  const hat = L.hat, hat2 = hat && shade(hat, -0.16), hat3 = hat && shade(hat, 0.2), sc = L.scarf, sc2 = sc && shade(sc, -0.2);
+  const lf = f === 1 ? -1 : 0, rf = f === 2 ? -1 : 0, hl = L.hairLen ? -3 : 0;
+  const eye = x => o.blink ? p(shade(sk, -0.45), x, 8, 1, 1) : p(EYE, x, 7, 1, 2);
+  const fin = () => { if (o.breathe) { const t = mk(16, 24); t.getContext('2d').drawImage(c, 0, 0); p.g.clearRect(0, 0, 16, 18); p.g.drawImage(t, 0, 0, 16, 18, 0, 1, 16, 18); } return outline(c); };
+  if (L.hood) { // путник: капюшон, светлая пелерина на плечах, расклешенный плащ, за спиной котомка со скаткой
+    const cl = L.hood, cl2 = shade(cl, -0.22), cl3 = shade(cl, 0.2), br = '#a8653a', br2 = '#7a4526', roll = '#e3d2a4', roll2 = '#bfa878';
+    const cloak = () => { p(cl, 3, 13, 10, 3); p(cl, 2, 16, 12, 2); p(cl, 1, 18, 14, 3); p(cl2, 1, 20, 14, 1); p(cl2, 4, 15, 1, 5); p(cl2, 11, 15, 1, 5); };
+    const hood = () => { p(cl, 5, 1, 6, 1); p(cl, 4, 2, 8, 1); p(cl, 3, 3, 10, 8); p(cl3, 5, 2, 4, 1); p(cl3, 3, 4, 1, 4); };
+    if (dir === 'down') {
+      cloak(); p(sh, 5, 21 + lf, 2, 2); p(sh, 9, 21 + rf, 2, 2);
+      hood(); p(shade(sk, -0.32), 5, 5, 6, 1); p(shade(sk, -0.1), 5, 6, 6, 4); p(cl2, 5, 10, 6, 1); eye(6); eye(9);
+      p(cl3, 2, 11, 12, 2); p(cl2, 2, 13, 12, 1); p(GOLD, 7, 11, 2, 2);
+      for (let k = 0; k < 6; k++) p(br2, 4 + k, 14 + k, 2, 1);                                  // ремень котомки через грудь
+    } else if (dir === 'up') {
+      cloak(); p(sh, 5, 21 + lf, 2, 2); p(sh, 9, 21 + rf, 2, 2);
+      hood(); p(cl2, 3, 9, 10, 2);
+      p(cl3, 2, 11, 12, 2); p(cl2, 2, 13, 12, 1);
+      p(br, 5, 13, 6, 6); p(br2, 5, 13, 6, 2); p(br2, 5, 18, 6, 1); p(GOLD, 7, 15, 2, 1);        // котомка
+      p(roll, 3, 10, 10, 3); p(roll2, 3, 10, 1, 3); p(roll2, 12, 10, 1, 3); p(roll2, 4, 12, 8, 1); p(br2, 5, 10, 1, 3); p(br2, 10, 10, 1, 3); // скатка
+    } else {
+      const s = f === 1 ? 1 : f === 2 ? -1 : 0;
+      p(cl, 4, 13, 7, 3); p(cl, 3, 16, 9, 2); p(cl, 3, 18, 10, 3); p(cl2, 3, 20, 10, 1); p(cl2, 9, 15, 1, 5); p(sh, 6 + s, 21, 4, 2);
+      p(cl, 5, 1, 6, 1); p(cl, 4, 2, 8, 9); p(cl, 3, 4, 1, 5); p(cl3, 5, 2, 4, 1);
+      p(shade(sk, -0.32), 9, 5, 3, 1); p(shade(sk, -0.1), 9, 6, 3, 4); p(sk2, 12, 8, 1, 1); eye(10); p(cl2, 9, 10, 3, 1);
+      p(cl3, 3, 11, 9, 2); p(cl2, 3, 13, 9, 1); p(GOLD, 11, 11, 1, 2);
+      p(br, 1, 13, 3, 6); p(br2, 1, 13, 3, 2); p(br2, 1, 18, 3, 1); p(roll, 0, 10, 4, 3); p(roll2, 0, 12, 4, 1); p(br2, 2, 10, 1, 3); // котомка и скатка за спиной
+    }
+    return fin();
+  }
+  const long = st === 'long' || st === 'wavy' || st === 'mid' || st === 'bob';
+  const crown = () => { if (!L.crown) return; if (dir === 'left' || dir === 'right') { p(GOLD, 5, 1, 7, 1); p(GOLD, 5, 0, 1, 1); p(GOLD, 8, 0, 1, 1); p(GOLD, 11, 0, 1, 1); p('#e2445c', 8, 1, 1, 1); } else { p(GOLD, 4, 1, 8, 1); p(GOLD, 4, 0, 1, 1); p(GOLD, 7, 0, 2, 1); p(GOLD, 11, 0, 1, 1); if (dir === 'down') p('#e2445c', 7, 1, 2, 1); } };
+  if (dir === 'down' || dir === 'up') {
+    const back = dir === 'up';
+    if (!back) { if (st === 'long') p(hr2, 2, 5, 12, 11); if (st === 'mid') p(hr2, 2, 5, 12, 9); if (st === 'bob') p(hr2, 2, 5, 12, 7); if (st === 'wavy') { p(hr2, 2, 5, 12, 12 + hl); p(hr2, 1, 9, 14, 7 + hl); } }
+    if (L.dress) { p(L.dress, 4, 16, 8, 3); p(L.dress, 3, 18, 10, 3); p(shade(L.dress, -0.16), 3, 20, 10, 1); p(shade(L.dress, 0.2), 4, 16, 1, 4); p(sh, 5, 21 + lf, 2, 2); p(sh, 9, 21 + rf, 2, 2); }
+    else { p(bt, 5, 18, 3, 3 + lf); p(bt, 8, 18, 3, 3 + rf); p(bt2, 7, 19, 2, 2); if (L.shorts) { if (!lf) p(sk, 5, 20, 3, 1); if (!rf) p(sk, 8, 20, 3, 1); } p(sh, 5, 21 + lf, 3, 2); p(sh, 8, 21 + rf, 3, 2); }
+    p(tp, 5, 12, 6, 6); p(tp2, 5, 17, 6, 1);
+    if (L.vest) { if (back) p(L.vest, 5, 12, 6, 6); else { p(L.vest, 5, 12, 2, 6); p(L.vest, 9, 12, 2, 6); } p(shade(L.vest, -0.18), 5, 17, back ? 6 : 2, 1); if (!back) p(shade(L.vest, -0.18), 9, 17, 2, 1); }
+    if (L.stripes) { p(L.stripes[0], 5, 13, 6, 1); p(L.stripes[1] || L.stripes[0], 5, 15, 6, 1); }
+    if (L.apron && !back) { p('#f7f1e3', 6, 13, 4, 5); }
+    if (L.suit && !back) { p(L.suit, 7, 12, 2, 3); p(tp2, 6, 12, 1, 4); p(tp2, 9, 12, 1, 4); p('#fff', 7, 16, 1, 1); }
+    if (L.inner && !back) { p(L.inner, 6, 12, 4, 6); p(tp2, 5, 17, 1, 1); p(tp2, 10, 17, 1, 1); }
+    if (L.collar && !back) { p(L.collar, 5, 12, 2, 1); p(L.collar, 9, 12, 2, 1); p('#2a3350', 7, 12, 2, 2); }
+    if (L.patch && !back) { p(L.patch, 9, 14, 2, 2); }
+    const la = f === 1 ? 1 : 0, ra = f === 2 ? 1 : 0;
+    if (!o.cheer) { p(tp2, 3, 12, 2, 5 - la); p(sk, 3, 17 - la, 2, 1); p(tp2, 11, 12, 2, 5 - ra); p(sk, 11, 17 - ra, 2, 1); }
+    if (!back) {
+      p(sk, 3, 4, 10, 8); p.clear(3, 11); p.clear(12, 11);
+      if (!long) { p(sk, 2, 8, 1, 2); p(sk, 13, 8, 1, 2); }
+      if (st === 'beanie') { p(hat, 4, 0, 8, 1); p(hat, 3, 1, 10, 3); p(hat2, 2, 4, 12, 2); p(hat3, 5, 1, 3, 1); p(hr, 3, 6, 1, 2); p(hr, 12, 6, 1, 2); }
+      else { p(hr, 3, 2, 10, 3); p(hr, 4, 1, 8, 1); p(hr3, 5, 2, 3, 1);
+        if (st === 'short' || st === 'bun') { p(hr, 2, 4, 1, 3); p(hr, 13, 4, 1, 3); p(hr, 3, 5, 3, 1); p(hr, 9, 5, 4, 1); if (st === 'bun') { p(hr, 6, 0, 4, 1); p(hr2, 6, -1 + 1, 4, 1); } }
+        if (st === 'long') { p(hr, 2, 3, 2, 13); p(hr, 12, 3, 2, 13); p(hr, 4, 5, 2, 1); p(hr, 10, 5, 2, 1); p(hr2, 8, 2, 1, 3); }
+        if (st === 'bob') { p(hr, 2, 3, 2, 9); p(hr, 12, 3, 2, 9); p(hr, 3, 5, 7, 1); p(hr, 3, 6, 4, 1); p(hr, 11, 5, 1, 1); p(hr3, 4, 3, 5, 1); p(hr2, 10, 2, 1, 3); }
+        if (st === 'mid') { p(hr, 2, 3, 2, 11); p(hr, 12, 3, 2, 11); p(hr3, 2, 12, 2, 2); p(hr3, 12, 12, 2, 2); p(hr, 4, 5, 1, 1); p(hr, 11, 5, 1, 1); p(hr2, 8, 2, 1, 3); }
+        if (st === 'wavy') { p(hr, 2, 3, 2, 14 + hl); p(hr, 12, 3, 2, 14 + hl); p(hr, 1, 8, 1, 8 + hl); p(hr, 14, 8, 1, 8 + hl); p(hr, 4, 5, 2, 1); p(hr, 10, 5, 2, 1); p(hr3, 1, 13 + hl, 3, 3); p(hr3, 12, 13 + hl, 3, 3); p(hr2, 8, 2, 1, 3); }
+      }
+      if (L.glasses) { p('#e3ecf7', 4, 7, 3, 2); p('#e3ecf7', 9, 7, 3, 2); p('#8d8a94', 7, 7, 2, 1); }
+      eye(5); eye(10);
+      if (L.shades) { p('#2c3829', 4, 7, 3, 2); p('#2c3829', 9, 7, 3, 2); p(GOLD2, 7, 7, 2, 1); p('#6f8a66', 4, 7, 1, 1); p('#6f8a66', 9, 7, 1, 1); } p(blush, 4, 9, 1, 1); p(blush, 11, 9, 1, 1); p(mouth, 7, 10, 2, 1);
+      if (L.beard) { p(hr2, 3, 9, 2, 2); p(hr2, 11, 9, 2, 2); p(hr2, 4, 10, 8, 2); p(sk2, 7, 10, 2, 1); }
+      if (sc) { p(sc, 3, 11, 10, 2); p(sc2, 3, 12, 10, 1); p(sc, 9, 13, 2, 3); p(sc2, 9, 15, 2, 1); }
+    } else {
+      if (st === 'beanie') { p(hr, 3, 5, 10, 5); p(sk, 6, 10, 4, 2); p(hat, 4, 0, 8, 1); p(hat, 3, 1, 10, 3); p(hat2, 2, 4, 12, 2); p(hat3, 5, 1, 3, 1); }
+      else { p(hr, 3, 2, 10, 9); p(hr, 4, 1, 8, 1); p(hr2, 3, 9, 10, 2); p(hr3, 5, 3, 3, 1); p(hr, 2, 4, 1, 5); p(hr, 13, 4, 1, 5); p(sk, 6, 11, 4, 1);
+        if (st === 'bun') { p(hr, 6, 0, 4, 1); }
+        if (st === 'long') { p(hr, 2, 3, 12, 13); p(hr2, 2, 14, 12, 2); p(hr3, 5, 3, 3, 1); p(hr2, 8, 5, 1, 8); }
+        if (st === 'bob') { p(hr, 2, 3, 12, 9); p(hr2, 2, 10, 12, 2); p(hr3, 5, 3, 3, 1); }
+        if (st === 'mid') { p(hr, 2, 3, 12, 11); p(hr3, 2, 12, 12, 2); p(hr3, 5, 3, 3, 1); p(hr2, 8, 5, 1, 6); }
+        if (st === 'wavy') { p(hr, 2, 3, 12, 14 + hl); p(hr, 1, 8, 14, 8 + hl); p(hr3, 1, 14 + hl, 14, 2); p(hr2, 5, 6, 1, 7 + hl); p(hr2, 10, 6, 1, 7 + hl); p(hr3, 5, 3, 3, 1); }
+      }
+      if (sc) { p(sc, 3, 10, 10, 3); p(sc2, 3, 12, 10, 1); p(sc, 5, 13, 2, 3); }
+    }
+    if (o.cheer) { p(tp2, 3, 12, 2, 2); p(tp2, 11, 12, 2, 2); p(tp2, 1, 9, 2, 4); p(tp2, 13, 9, 2, 4); p(sk, 1, 7, 2, 2); p(sk, 13, 7, 2, 2); }
+    crown();
+    return fin();
+  }
+  // вид сбоку (вправо); влево получается зеркалом
+  if (L.dress) { p(L.dress, 5, 16, 7, 5); p(shade(L.dress, -0.16), 5, 20, 7, 1); p(sh, 6 + (f === 1 ? 1 : f === 2 ? -1 : 0), 21, 4, 2); }
+  else if (f === 0) { p(bt, 6, 18, 4, 3); if (L.shorts) p(sk, 6, 20, 4, 1); p(sh, 6, 21, 5, 2); }
+  else if (f === 1) { p(bt2, 5, 18, 3, 2); p(sh, 4, 20, 3, 2); p(bt, 8, 18, 3, 3); if (L.shorts) p(sk, 8, 20, 3, 1); p(sh, 8, 21, 4, 2); }
+  else { p(bt2, 8, 18, 3, 2); p(sh, 9, 20, 3, 2); p(bt, 5, 18, 3, 3); if (L.shorts) p(sk, 5, 20, 3, 1); p(sh, 5, 21, 4, 2); }
+  if (st === 'long') p(hr2, 2, 4, 5, 12); if (st === 'mid') p(hr2, 2, 4, 5, 10); if (st === 'bob') p(hr2, 2, 4, 5, 8); if (st === 'wavy') { p(hr2, 1, 4, 6, 13 + hl); p(hr3, 1, 14 + hl, 5, 3); }
+  p(tp, 6, 12, 5, 6); p(tp2, 6, 17, 5, 1); if (L.stripes) { p(L.stripes[0], 6, 13, 5, 1); p(L.stripes[1] || L.stripes[0], 6, 15, 5, 1); } if (L.vest) { p(L.vest, 6, 12, 4, 6); p(shade(L.vest, -0.18), 6, 17, 4, 1); }
+  if (L.suit) { p(L.suit, 10, 12, 1, 3); p(tp2, 9, 12, 1, 4); } if (L.inner) p(L.inner, 9, 12, 2, 6); if (L.collar) { p(L.collar, 8, 12, 3, 1); } if (L.patch) p(L.patch, 10, 14, 1, 2);
+  const ax = f === 1 ? 1 : f === 2 ? -1 : 0; if (!o.cheer) { p(tp2, 7 + ax, 12, 2, 5); p(sk, 7 + ax, 17, 2, 1); }
+  p(sk, 4, 4, 9, 8); p.clear(12, 11); p.clear(4, 11); p(sk, 13, 8, 1, 1);
+  if (st === 'beanie') { p(hat, 5, 0, 7, 1); p(hat, 4, 1, 9, 3); p(hat2, 3, 4, 11, 2); p(hat3, 6, 1, 3, 1); p(hr, 4, 6, 3, 3); }
+  else { p(hr, 4, 2, 9, 3); p(hr, 5, 1, 7, 1); p(hr3, 6, 2, 3, 1); p(hr, 3, 3, 4, 7); p(hr, 7, 5, 2, 1);
+    if (st === 'bun') p(hr, 3, 1, 3, 3);
+    if (st === 'long') { p(hr, 2, 3, 5, 12); p(hr2, 2, 14, 5, 1); }
+    if (st === 'mid') { p(hr, 2, 3, 5, 11); p(hr3, 2, 12, 5, 2); }
+    if (st === 'bob') { p(hr, 2, 3, 6, 9); p(hr, 8, 5, 3, 1); p(hr2, 2, 11, 5, 1); }
+    if (st === 'wavy') { p(hr, 2, 3, 5, 13 + hl); p(hr, 1, 7, 1, 8 + hl); p(hr3, 1, 13 + hl, 4, 3); }
+  }
+  if (L.glasses) { p('#e3ecf7', 9, 7, 3, 2); p('#8d8a94', 6, 7, 3, 1); }
+  eye(10); if (L.shades) { p('#2c3829', 9, 7, 3, 2); p(GOLD2, 6, 7, 3, 1); p('#6f8a66', 9, 7, 1, 1); } p(blush, 9, 9, 1, 1); p(mouth, 11, 10, 1, 1);
+  if (L.beard) { p(hr2, 8, 9, 5, 3); }
+  if (sc) { p(sc, 4, 11, 9, 2); p(sc2, 4, 12, 9, 1); p(sc, 4, 13, 2, 3); }
+  if (o.cheer) { p(tp2, 10, 12, 2, 2); p(tp2, 12, 10, 2, 3); p(tp2, 13, 8, 2, 3); p(sk, 13, 6, 2, 2); }
+  crown();
+  return fin();
+}
+function charSheet(L) {
+  // кадры: 0 стоит, 1-2 шаги, 3 вдох, 4 руки вверх, 5 моргание
+  const s = {}; for (const d of ['down', 'up', 'right']) s[d] = [0, 1, 2].map(f => charFrame(L, d, f)).concat([charFrame(L, d, 0, { breathe: true }), charFrame(L, d, 0, { cheer: true }), charFrame(L, d, 0, { blink: true })]);
+  s.left = s.right.map(flip); s.w = 18; s.h = 26; s.oy = -10; return s;
+}
+
+/* ---------- портрет 32x32 для диалогов: стилизованный, крупная голова и большие глаза ---------- */
+function portrait(L) {
+  if (L.pig) return pigPortrait(L);
+  if (L.dog) return dogPortrait(L);
+  if (L.cat) return catPortrait(L);
+  const c = mk(32, 32), p = pen(c), g = p.g;
+  const sk = L.skin || '#f2c9a8', sk2 = shade(sk, -0.12), hr = L.hair || '#6b4a2f', hr2 = shade(hr, -0.2), hr3 = L.hairTip || shade(hr, 0.24), shine = shade(hr, 0.34);
+  const tp = L.top || L.dress || '#4a78b8', tp2 = shade(tp, -0.16), st = L.hairStyle || 'short', HL = L.hairLen || 32;
+  const iris = L.eyes || '#6b4a34', irisD = shade(iris, -0.42), irisL = shade(iris, 0.38), mouth = L.lips || '#c8605a';
+  const fem = L.lashes !== undefined ? L.lashes : (st !== 'short');
+  const rows = (col, list) => list.forEach(r => p(col, r[1], r[0], r[2] - r[1] + 1, 1));
+  const eyeAt = (ex, outer) => { p(EYE, ex, 14, 4, 1); p(irisD, ex, 15, 4, 1); p(iris, ex, 16, 4, 2); p(irisL, ex, 18, 4, 1); p(EYE, ex + 1, 16, 2, 2); p('#fff', ex, 15, 2, 1); p('#fff', ex + 3, 18, 1, 1); if (fem) p(EYE, outer, 14, 1, 2); };
+  const FACE = [[8, 10, 21], [9, 8, 23], [10, 7, 24], [11, 7, 24], [12, 7, 24], [13, 7, 24], [14, 7, 24], [15, 7, 24], [16, 7, 24], [17, 7, 24], [18, 7, 24], [19, 7, 24], [20, 7, 24], [21, 8, 23], [22, 9, 22], [23, 10, 21], [24, 12, 19]];
+  if (L.hood) { // путник: лицо в тени капюшона
+    const cl = L.hood, cl2 = shade(cl, -0.24), cl3 = shade(cl, 0.2), dark = shade(cl, -0.5);
+    rows(cl, [[1, 12, 19], [2, 9, 22], [3, 7, 24], [4, 6, 25], [5, 5, 26], [25, 5, 26], [26, 5, 26], [27, 4, 27], [28, 3, 28], [29, 3, 28], [30, 3, 28], [31, 3, 28]]); for (let y = 6; y < 25; y++) p(cl, 4, y, 24, 1);
+    rows(dark, [[7, 10, 21], [8, 8, 23], [22, 9, 22], [23, 11, 20]]); for (let y = 9; y < 22; y++) p(dark, 7, y, 18, 1);
+    rows(shade(sk, -0.16), FACE.filter(r => r[0] >= 12 && r[0] <= 22).map(r => [r[0], Math.max(r[1], 8), Math.min(r[2], 23)]));
+    p(shade(sk, -0.34), 8, 12, 16, 1);
+    eyeAt(9, 8); eyeAt(19, 23); p(shade(sk, -0.4), 15, 21, 2, 1);
+    p(cl3, 10, 3, 8, 1); p(cl3, 5, 7, 2, 9); p(cl2, 4, 24, 24, 1); p(cl2, 15, 26, 2, 6); p(GOLD, 14, 25, 4, 2);
+    return outline(c);
+  }
+  const long = st === 'long' || st === 'mid' || st === 'wavy';
+  // волосы сзади
+  if (st === 'long') for (let y = 7; y < 32; y++) p(hr2, 5 - (y > 20 ? 1 : 0), y, 22 + (y > 20 ? 2 : 0), 1);
+  if (st === 'mid') { for (let y = 7; y < 26; y++) p(hr2, 5, y, 22, 1); rows(hr2, [[26, 6, 10], [26, 21, 25]]); }
+  if (st === 'bob') for (let y = 7; y < 23; y++) p(hr2, 5, y, 22, 1);
+  if (st === 'wavy') for (let y = 6; y < HL; y++) { const wv = Math.round(Math.sin(y * 0.9) * 1.3); p(y > HL - 8 ? mix(hr2, hr3, 0.5) : hr2, 3 + wv, y, 26 - wv * 2, 1); }
+  // плечи и шея
+  rows(tp, [[27, 8, 23], [28, 6, 25], [29, 5, 26], [30, 5, 26], [31, 5, 26]]); p(tp2, 5, 30, 2, 2); p(tp2, 25, 30, 2, 2);
+  p(sk2, 13, 24, 6, 3); if (!L.scarf && !L.collar) { p(sk, 12, 27, 8, 1); p(sk, 13, 28, 6, 1); }
+  if (L.stripes) { p(L.stripes[0], 6, 28, 20, 1); p(L.stripes[1] || L.stripes[0], 5, 30, 22, 1); }
+  if (L.apron) p('#f7f1e3', 11, 29, 10, 3);
+  if (L.vest) { const v = L.vest, v2 = shade(v, -0.16); rows(v, [[27, 9, 11], [27, 20, 22], [28, 8, 13], [28, 18, 23], [29, 8, 14], [29, 17, 23], [30, 8, 14], [30, 17, 23], [31, 8, 14], [31, 17, 23]]); p(v2, 8, 28, 1, 4); p(v2, 23, 28, 1, 4); p(v2, 14, 29, 1, 3); p(v2, 17, 29, 1, 3); }
+  if (L.suit) { rows(L.suit, [[27, 12, 19], [28, 13, 18], [29, 14, 17], [30, 15, 16]]); p(sk, 13, 27, 6, 1); p(sk, 14, 28, 4, 1); rows(tp2, [[28, 11, 12], [29, 12, 13], [30, 13, 14], [31, 14, 15], [28, 19, 20], [29, 18, 19], [30, 17, 18], [31, 16, 17]]); rows(shade(tp, 0.22), [[27, 9, 10], [28, 9, 10], [27, 21, 22], [28, 21, 22]]); }
+  if (L.inner) { rows(L.inner, [[27, 12, 19], [28, 11, 20], [29, 10, 21], [30, 10, 21], [31, 10, 21]]); p(sk, 13, 27, 6, 1); p(sk, 14, 28, 4, 1); p(tp2, 9, 29, 1, 3); p(tp2, 22, 29, 1, 3); }
+  if (L.collar) { const cc = L.collar, c2 = shade(cc, -0.14); rows(cc, [[26, 9, 13], [27, 9, 14], [28, 10, 14], [26, 18, 22], [27, 17, 22], [28, 17, 21]]); p(c2, 10, 29, 5, 1); p(c2, 17, 29, 5, 1); p(sk, 14, 26, 4, 2); p('#2a3350', 15, 28, 2, 3); p('#fffdf2', 15, 31, 2, 1); }
+  if (L.patch) { p(L.patch, 20, 29, 1, 3); p(L.patch, 23, 29, 1, 3); p(L.patch, 21, 30, 2, 1); }
+  if (L.necklace) { for (const [x, y] of [[12, 27], [13, 28], [14, 29], [17, 29], [18, 28], [19, 27]]) p('#e8ecf2', x, y); p('#3a3a48', 15, 29, 2, 2); }
+  // лицо
+  rows(sk, FACE); if (!long && st !== 'bob') { p(sk, 6, 15, 1, 3); p(sk, 25, 15, 1, 3); p(sk2, 6, 17, 1, 1); p(sk2, 25, 17, 1, 1); }
+  g.globalAlpha = 0.5; p('#ff8a8a', 8, 20, 3, 2); p('#ff8a8a', 21, 20, 3, 2); g.globalAlpha = 1;
+  const brow = fem ? mix(hr2, sk, 0.2) : hr2; p(brow, 9, 12, 4, 1); p(brow, 19, 12, 4, 1);
+  eyeAt(9, 8); eyeAt(19, 23);
+  p(shade(sk, -0.2), 16, L.beard ? 19 : 20, 1, 1);
+  if (L.smile === 'big') { p(mouth, 13, 21, 6, 1); p('#fff', 14, 21, 4, 1); p('#a8484a', 14, 22, 4, 1); p('#ee8f8f', 15, 22, 2, 1); }
+  else if (L.smile === 'calm') { p(mouth, 14, 22, 4, 1); p(shade(mouth, -0.2), 15, 23, 2, 1); }
+  else { p(mouth, 15, 22, 2, 1); p(mouth, 14, 21, 1, 1); p(mouth, 17, 21, 1, 1); }
+  if (L.beard) { // аккуратная короткая борода
+    rows(hr2, [[18, 7, 7], [19, 7, 8], [20, 7, 9], [21, 8, 12], [22, 9, 22], [23, 10, 21], [24, 12, 19]]); rows(hr2, [[18, 24, 24], [19, 23, 24], [20, 22, 24], [21, 19, 23]]);
+    p(hr2, 13, 20, 6, 1); p(sk, 13, 21, 6, 1); p('#7a3a34', 14, 21, 4, 1); p('#fff', 15, 21, 2, 1); p(hr, 11, 23, 2, 1); p(hr, 18, 23, 2, 1); p(hr, 15, 24, 2, 1);
+  }
+  // волосы спереди
+  if (st === 'beanie') {
+    const hat = L.hat, hat2 = shade(hat, -0.14), hat3 = shade(hat, 0.18);
+    rows(hat, [[1, 11, 20], [2, 8, 23], [3, 7, 24], [4, 6, 25], [5, 6, 25], [6, 6, 25], [7, 6, 25]]); for (let x = 9; x < 24; x += 3) p(hat2, x, 3, 1, 5); p(hat3, 10, 2, 3, 1); p(hat3, 8, 4, 1, 2);
+    p(hat2, 5, 8, 22, 3); for (let x = 6; x < 27; x += 2) p(hat, x, 8, 1, 3); p(shade(hat, -0.3), 5, 10, 22, 1);
+    p(hr, 6, 11, 2, 5); p(hr, 24, 11, 2, 5); p(hr3, 6, 11, 1, 2); p(hr3, 25, 11, 1, 2);
+  } else {
+    if (st === 'wavy') rows(hr, [[1, 11, 20], [2, 8, 23], [3, 6, 25], [4, 5, 26], [5, 4, 27], [6, 4, 27], [7, 4, 27], [8, 4, 27]]);
+    else rows(hr, [[2, 11, 20], [3, 8, 23], [4, 7, 24], [5, 6, 25], [6, 6, 25], [7, 6, 25], [8, 6, 25]]);
+    if (st === 'bun') { rows(hr, [[0, 13, 18], [1, 12, 19]]); p(hr2, 12, 2, 8, 1); }
+    if (st === 'short' || st === 'bun') { p(hr, 6, 9, 2, 4); p(hr, 24, 9, 2, 4); p(hr, 8, 9, 16, 1); p(hr, 8, 10, 5, 1); p(hr, 15, 10, 3, 1); p(hr, 20, 10, 4, 1); p(hr, 8, 11, 2, 1); p(hr, 22, 11, 2, 1); p(shine, 10, 4, 6, 1); p(hr3, 9, 5, 3, 1); p(hr3, 18, 5, 3, 1); }
+    if (long) { rows(hr, [[9, 7, 13], [10, 7, 11], [11, 7, 9], [12, 7, 8], [9, 18, 24], [10, 20, 24], [11, 22, 24], [12, 23, 24]]); p(hr2, 16, 3, 1, 6); p(shine, 9, 4, 5, 1); p(shine, 19, 4, 4, 1); p(hr3, 8, 6, 3, 1); p(hr3, 21, 6, 3, 1); }
+    if (st === 'bob') { rows(hr, [[9, 7, 20], [10, 7, 17], [11, 7, 14], [12, 7, 11], [9, 23, 24], [10, 23, 24]]); p(hr, 5, 9, 3, 13); p(hr, 24, 9, 3, 13); p(hr, 6, 22, 3, 1); p(hr, 23, 22, 3, 1); p(hr, 7, 23, 2, 1); p(hr, 23, 23, 2, 1); p(hr2, 20, 3, 1, 6); p(shine, 9, 4, 9, 1); p(shine, 8, 6, 6, 1); p(hr3, 9, 8, 7, 1); p(hr3, 6, 12, 1, 8); p(hr3, 25, 12, 1, 8); p(hr2, 18, 9, 3, 1); p(hr2, 15, 10, 3, 1); p(hr2, 12, 11, 3, 1); p(hr2, 8, 12, 4, 1); p(hr2, 7, 13, 1, 9); p(hr2, 24, 11, 1, 11); }
+    if (st === 'long') { p(hr, 5, 9, 3, 22); p(hr, 24, 9, 3, 22); p(hr, 4, 21, 1, 10); p(hr, 27, 21, 1, 10); p(hr3, 6, 13, 1, 13); p(hr3, 25, 13, 1, 13); }
+    if (st === 'mid') { p(hr, 5, 9, 3, 17); p(hr, 24, 9, 3, 17); p(hr, 6, 26, 2, 1); p(hr, 24, 26, 2, 1); p(hr3, 5, 22, 3, 3); p(hr3, 24, 22, 3, 3); p(hr3, 6, 12, 1, 8); p(hr3, 25, 12, 1, 8); }
+    if (st === 'wavy') for (let y = 9; y < HL - 1; y++) { const wv = Math.round(Math.sin(y * 0.9) * 1.3), col = y > HL - 9 ? hr3 : hr; p(col, 3 + wv, y, 5, 1); p(col, 24 - wv, y, 5, 1); if (y % 4 === 1) { p(shine, 5 + wv, y, 1, 1); p(shine, 26 - wv, y, 1, 1); } }
+  }
+  if (L.glasses) { const gl = '#8f8da2'; for (const x of [8, 18]) { p(gl, x + 1, 13, 4, 1); p(gl, x + 1, 19, 4, 1); p(gl, x, 14, 1, 5); p(gl, x + 5, 14, 1, 5); } p(gl, 14, 15, 4, 1); p(gl, 6, 15, 2, 1); p(gl, 24, 15, 2, 1); }
+  if (L.shades) { const ln = '#2c3829'; for (const x of [8, 18]) { p(GOLD2, x, 13, 6, 1); p(ln, x, 14, 6, 4); p(ln, x + 1, 18, 4, 1); p('#6f8a66', x + 1, 15, 2, 1); p('#4d6147', x + 1, 16, 1, 1); } p(GOLD2, 14, 14, 4, 1); p(GOLD2, 6, 14, 2, 1); p(GOLD2, 24, 14, 2, 1); }
+  if (L.scarf) { const sc = L.scarf, sc2 = shade(sc, -0.2), sc3 = shade(sc, 0.15); rows(sc, [[25, 7, 24], [26, 5, 26], [27, 4, 27], [28, 4, 27], [29, 4, 27], [30, 4, 27], [31, 5, 26]]); p(sc2, 5, 28, 22, 1); p(sc2, 8, 30, 16, 1); p(sc3, 8, 26, 10, 1); p(sc, 18, 30, 6, 2); p(sc2, 18, 30, 1, 2); }
+  if (L.crown) { p(GOLD, 9, 2, 14, 3); p(GOLD2, 9, 4, 14, 1); for (const x of [9, 15, 21]) p(GOLD, x, 0, 2, 2); for (const x of [12, 18]) p(GOLD, x, 1, 2, 1); p('#e2445c', 15, 2, 2, 2); p('#52aee6', 11, 3, 1, 1); p('#52aee6', 20, 3, 1, 1); p('#fff4c9', 10, 2, 2, 1); }
+  return outline(c);
+}
+
+/* ---------- морские свинки ---------- */
+function pigFrame(L, dir, f) {
+  const c = mk(14, 10), p = pen(c), pink = '#f0a2a8';
+  if (dir === 'right') {
+    const z = x => x <= 4 ? L.rump : x <= 8 ? L.mid : L.head;
+    for (let y = 2; y <= 8; y++) for (let x = 1; x <= 12; x++) { if ((y === 2 || y === 8) && (x < 2 || x > 11)) continue; let col = z(x); if (L.blaze && x >= 11) col = L.blaze; if (L.fleck && x <= 6 && hash2(x, y, 81) > 0.62) col = shade(col, -0.25); if (L.belly && y >= 7 && x <= 4) col = L.belly; p(col, x, y); }
+    p(L.ear, 8, 1, 3, 2); p(shade(L.ear, 0.2), 9, 2, 1, 1); p(EYE, 10, 4, 1, 2); p('#fff', 10, 4, 1, 1); p(pink, 13, 5, 1, 1);
+    if (f === 1) { p(pink, 2, 9); p(pink, 11, 9); } else { p(pink, 3, 9); p(pink, 10, 9); }
+  } else if (dir === 'down') {
+    for (let y = 1; y <= 8; y++) for (let x = 3; x <= 10; x++) { if ((y === 1 || y === 8) && (x < 4 || x > 9)) continue; p(x <= 6 ? (L.faceL || L.head) : (L.faceR || L.head), x, y); }
+    if (L.blaze) { p(L.blaze, 6, 1, 2, 8); p(L.blaze, 5, 5, 4, 4); }
+    p(L.ear, 2, 2, 2, 2); p(L.ear, 10, 2, 2, 2); p(EYE, 4, 4, 1, 2); p(EYE, 9, 4, 1, 2); p(pink, 6, 6, 2, 1); p(shade(pink, -0.3), 6, 7, 2, 1);
+    if (f === 1) { p(pink, 4, 9); p(pink, 9, 9); } else { p(pink, 5, 9); p(pink, 8, 9); }
+  } else {
+    for (let y = 1; y <= 8; y++) for (let x = 3; x <= 10; x++) { if ((y === 1 || y === 8) && (x < 4 || x > 9)) continue; let col = y <= 3 ? L.head : y <= 5 ? L.mid : L.rump; if (L.fleck && y > 3 && hash2(x, y, 82) > 0.62) col = shade(col, -0.25); p(col, x, y); }
+    p(L.ear, 2, 2, 2, 2); p(L.ear, 10, 2, 2, 2); if (f === 1) { p(pink, 4, 9); p(pink, 9, 9); } else { p(pink, 5, 9); p(pink, 8, 9); }
+  }
+  return outline(c);
+}
+function pigSheet(L) { const s = {}; for (const d of ['down', 'up', 'right']) s[d] = [0, 1, 1].map((f, i) => pigFrame(L, d, i === 2 ? 0 : f)); s.down[2] = s.down[0]; s.up[2] = s.up[0]; s.right[2] = s.right[0]; s.left = s.right.map(flip); s.w = 16; s.h = 12; s.oy = 3; return s; }
+function pigPortrait(L) {
+  const c = mk(32, 32), p = pen(c), pink = '#f0a2a8';
+  for (let y = 6; y < 32; y++) for (let x = 2; x < 30; x++) { const q = Math.hypot((x - 15.5) / 12.5, (y - 19) / 12); if (q > 1) continue; let col = x < 16 ? (L.faceL || L.head) : (L.faceR || L.head); if (L.fleck && y > 22 && hash2(x, y, 83) > 0.6) col = shade(col, -0.2); p(col, x, y); }
+  if (L.blaze) { for (let y = 6; y < 32; y++) { const hw = y < 14 ? 2 : y < 20 ? 3 + ((y - 14) >> 1) : 7; p(L.blaze, 16 - hw, y, hw * 2, 1); } }
+  if (L.bib) for (let y = 26; y < 32; y++) for (let x = 2; x < 30; x++) { if (Math.hypot((x - 15.5) / 12.5, (y - 19) / 12) <= 1 && Math.hypot((x - 15.5) / 11, (y - 33) / 8) <= 1) p(L.bib, x, y); }
+  for (const x0 of [1, 24]) { p(L.ear, x0, 7, 7, 5); p(L.ear, x0 + 1, 6, 5, 1); p(shade(L.ear, 0.25), x0 + 2, 8, 3, 3); }
+  p(EYE, 8, 15, 3, 4); p(EYE, 21, 15, 3, 4); p('#fff', 9, 15, 1, 2); p('#fff', 22, 15, 1, 2);
+  p(pink, 14, 20, 4, 2); p(shade(pink, -0.3), 15, 22, 2, 1); p(shade(pink, -0.3), 13, 23, 2, 1); p(shade(pink, -0.3), 17, 23, 2, 1);
+  p.g.globalAlpha = 0.5; p('#fff', 4, 21, 5, 1); p('#fff', 23, 21, 5, 1); p('#fff', 5, 23, 4, 1); p('#fff', 23, 23, 4, 1); p.g.globalAlpha = 1;
+  return outline(c);
+}
+
+/* ---------- папильон ---------- */
+function dogFrame(L, dir, f) {
+  const c = mk(16, 14), p = pen(c), K = L.black || '#231f29', K2 = shade(K, 0.2), W = L.white || '#fbf8f2', W2 = shade(W, -0.14), eye = L.eyes || '#c9722e';
+  if (dir === 'right') {
+    p(W, 1, 3, 2, 2); p(W, 0, 4, 2, 5); p(W, 2, 5, 2, 3); p(W2, 0, 8, 2, 1);                // хвост-плюмаж
+    p(W, 3, 7, 8, 5); p(W2, 3, 11, 7, 1); p(W, 10, 9, 2, 3);                                // тело и грудка
+    if (f === 1) { p(W, 3, 12, 2, 2); p(W, 10, 12, 2, 2); } else { p(W, 4, 12, 2, 2); p(W, 9, 12, 2, 2); }
+    p(K, 6, 0, 2, 1); p(K, 5, 1, 4, 5); p(K, 4, 3, 1, 4); p(K, 6, 6, 2, 1); p(K2, 6, 2, 2, 2); // большое ухо с бахромой
+    p(K, 9, 3, 5, 4); p.clear(13, 3); p(W, 13, 4, 1, 2); p(W, 10, 7, 4, 2); p(W, 12, 6, 3, 2); // голова, проточина, мордочка
+    p(eye, 11, 5); p(K, 14, 6); p(W2, 11, 8, 3, 1);
+  } else {
+    const ears = () => { p(K, 1, 0, 3, 1); p(K, 0, 1, 5, 4); p(K, 0, 5, 4, 1); p(K, 1, 6, 2, 1); p(K2, 1, 2, 2, 2); p(K, 12, 0, 3, 1); p(K, 11, 1, 5, 4); p(K, 12, 5, 4, 1); p(K, 13, 6, 2, 1); p(K2, 13, 2, 2, 2); };
+    p(W, 5, 9, 6, 4); p(W2, 5, 12, 6, 1); if (f === 1) { p(W, 4, 13, 2, 1); p(W, 10, 13, 2, 1); } else { p(W, 5, 13, 2, 1); p(W, 9, 13, 2, 1); }
+    ears(); p(K, 4, 2, 8, 7); p.clear(4, 2); p.clear(11, 2); p.clear(4, 8); p.clear(11, 8);
+    if (dir === 'down') { p(W, 7, 2, 2, 4); p(W, 6, 5, 4, 4); p(W, 5, 7, 6, 2); p.clear(5, 8); p.clear(10, 8); p(eye, 5, 5); p(eye, 10, 5); p(K, 7, 6, 2, 1); p(W2, 7, 8, 2, 1); p(W, 4, 9, 8, 2); }
+    else { p(W, 7, 7, 2, 4); p(W, 6, 8, 4, 2); }
+  }
+  return outline(c);
+}
+function dogSheet(L) { const s = {}; for (const d of ['down', 'up', 'right']) { const a = dogFrame(L, d, 0), b = dogFrame(L, d, 1); s[d] = [a, b, a]; } s.left = s.right.map(flip); s.w = 18; s.h = 16; s.oy = -1; return s; }
+function dogPortrait(L) {
+  const c = mk(32, 32), p = pen(c), K = L.black || '#231f29', K2 = shade(K, 0.2), W = L.white || '#fbf8f2', W2 = shade(W, -0.14), eye = L.eyes || '#c9722e';
+  // уши-бабочки: два наклоненных наружу овала с бахромой по нижнему краю
+  const ca = Math.cos(-0.5), sa = Math.sin(-0.5);
+  for (let y = 0; y < 24; y++) for (let x = 0; x < 15; x++) { const ux = x - 6.5, uy = y - 9.5, rx = ux * ca - uy * sa, ry = ux * sa + uy * ca; if ((rx / 5.2) ** 2 + (ry / 9.2) ** 2 > 1) continue; const col = vnoise(x / 2, y / 3, 97) > 0.6 ? K2 : K; p(col, x, y); p(col, 31 - x, y); }
+  for (const [x, y, len] of [[0, 12, 5], [1, 14, 6], [2, 15, 5], [3, 16, 6], [5, 17, 4]]) { p(K, x, y, 1, len); p(K, 31 - x, y, 1, len); }
+  // грудка
+  for (let y = 22; y < 32; y++) for (let x = 5; x < 27; x++) { if (Math.hypot((x - 15.5) / (8.5 + (y - 22) * 0.25), (y - 32) / 10) > 1) continue; p(hash2(x >> 1, y, 99) > 0.84 ? W2 : W, x, y); }
+  // голова
+  for (let y = 6; y < 24; y++) for (let x = 7; x < 25; x++) { if (Math.hypot((x - 15.5) / 7.6, (y - 14.5) / 7.4) > 1) continue; p(K, x, y); }
+  p(W, 15, 7, 2, 5); p(W, 14, 11, 4, 3);
+  for (let y = 13; y < 24; y++) for (let x = 9; x < 23; x++) { if (Math.hypot((x - 15.5) / 5.4, (y - 18.6) / 4.6) > 1) continue; p(W, x, y); }
+  p(W2, 12, 22, 8, 1);
+  for (const x of [10, 19]) { p(K2, x, 10, 3, 1); p(eye, x, 11, 3, 3); p(EYE, x + 1, 12, 1, 2); p('#fff', x, 11, 1, 1); }
+  p(K, 14, 16, 4, 2); p(K, 15, 18, 2, 1); p(K2, 14, 16, 1, 1); p(W2, 15, 20, 2, 1); p(W2, 13, 21, 2, 1); p(W2, 17, 21, 2, 1);
+  p(W2, 11, 18, 1, 1); p(W2, 20, 18, 1, 1); p(W2, 12, 20, 1, 1); p(W2, 19, 20, 1, 1);
+  return outline(c);
+}
+
+/* ---------- черная кошка ---------- */
+function catFrame(L, dir, f) {
+  const c = mk(16, 13), p = pen(c), K = L.black || '#2a2531', K2 = shade(K, 0.2), eye = L.eyes || '#d6dc52';
+  if (dir === 'right') {
+    p(K, 1, 1, 2, 1); p(K, 0, 2, 2, 6); p(K, 1, 7, 2, 2);                                 // хвост трубой
+    p(K, 2, 6, 9, 5); p(K2, 3, 6, 6, 1);
+    if (f === 1) { p(K, 2, 11, 2, 2); p(K, 9, 11, 2, 2); } else { p(K, 3, 11, 2, 2); p(K, 8, 11, 2, 2); }
+    p(K, 9, 3, 6, 6); p.clear(9, 3); p.clear(14, 3); p.clear(14, 8); p(K, 10, 2, 2, 1); p(K, 13, 2, 1, 1); p(K2, 10, 3, 3, 1);
+    p(eye, 12, 5, 2, 1); p(K2, 14, 6, 1, 1);
+  } else {
+    p(K, 12, 4, 2, 2); p(K, 13, 5, 1, 5); p(K, 11, 9, 3, 2);                               // хвост сбоку
+    p(K, 5, 8, 6, 4); if (f === 1) { p(K, 4, 12, 2, 1); p(K, 10, 12, 2, 1); } else { p(K, 5, 12, 2, 1); p(K, 9, 12, 2, 1); }
+    p(K, 4, 2, 8, 7); p.clear(4, 2); p.clear(11, 2); p.clear(4, 8); p.clear(11, 8); p(K, 4, 1, 2, 1); p(K, 10, 1, 2, 1); p(K2, 6, 2, 4, 1);
+    if (dir === 'down') { p(eye, 5, 5, 2, 1); p(eye, 9, 5, 2, 1); p(K2, 7, 6, 2, 1); p('#8f899b', 3, 6, 1, 1); p('#8f899b', 12, 6, 1, 1); }
+  }
+  return outline(c, '#15111a');
+}
+function catLoaf(L) { // клубком, как в чемодане
+  const c = mk(16, 13), p = pen(c), K = L.black || '#2a2531', K2 = shade(K, 0.2), eye = L.eyes || '#d6dc52';
+  for (let y = 3; y < 13; y++) for (let x = 0; x < 16; x++) { if (((x - 8) / 7.2) ** 2 + ((y - 8) / 4.2) ** 2 > 1) continue; p(vnoise(x / 2.5, y / 2, 77) > 0.66 && y < 8 ? K2 : K, x, y); }
+  p(K, 1, 5, 7, 6); p(K, 1, 4, 2, 1); p(K, 6, 4, 2, 1); p(K2, 3, 5, 3, 1); p(eye, 2, 8, 2, 1); p(eye, 5, 8, 2, 1); p(K2, 4, 9, 1, 1); p(K2, 9, 11, 5, 1);
+  return outline(c, '#15111a');
+}
+function catSheet(L) { const s = {}; for (const d of ['down', 'up', 'right']) { const a = catFrame(L, d, 0), b = catFrame(L, d, 1); s[d] = [a, b, a]; } s.left = s.right.map(flip); s.idle = catLoaf(L); s.w = 18; s.h = 15; s.oy = 0; return s; }
+function catPortrait(L) {
+  const c = mk(32, 32), p = pen(c), K = L.black || '#2a2531', K2 = shade(K, 0.16), K3 = shade(K, 0.32), eye = L.eyes || '#d6dc52', wh = '#d8d3e2';
+  for (let y = 21; y < 32; y++) for (let x = 2; x < 30; x++) { if (Math.hypot((x - 15.5) / 13, (y - 33) / 12) > 1) continue; p(K, x, y); }
+  for (let y = 5; y < 27; y++) for (let x = 3; x < 29; x++) { const q = Math.hypot((x - 15.5) / 11.8, (y - 16) / 9.8); if (q > 1) continue; p(q > 0.88 && y < 13 ? K2 : K, x, y); }
+  p(K2, 9, 26, 14, 1); p(K2, 11, 7, 10, 1); p(K2, 6, 28, 2, 3); p(K2, 24, 28, 2, 3);
+  // маленькие сложенные вперед уши
+  for (const s of [0, 1]) { const X = x => s ? 31 - x : x; for (const [y, a2, b] of [[3, 7, 8], [4, 6, 10], [5, 5, 11], [6, 4, 12], [7, 4, 12]]) for (let x = a2; x <= b; x++) p(K, X(x), y); for (let x = 5; x <= 11; x++) p(K3, X(x), 8); p(K2, X(7), 5, 1, 2); p(K2, X(8), 6, 1, 1); }
+  // прищуренные желто-зеленые глаза с вертикальным зрачком
+  for (const x of [7, 19]) { p(eye, x, 14, 6, 3); p(shade(eye, 0.35), x + 1, 15, 2, 1); p(EYE, x + 3, 14, 1, 3); p(K, x, 13, 6, 1); p(K, x, 14, 1, 1); p(K, x + 5, 14, 1, 1); p(K, x, 16, 1, 1); p(K, x + 5, 16, 1, 1); p(K3, x + 1, 12, 4, 1); }
+  p('#7a6470', 15, 19, 2, 1); p('#7a6470', 15, 20, 2, 1); p(K3, 13, 22, 2, 1); p(K3, 17, 22, 2, 1); p(K3, 15, 21, 2, 1);
+  p(wh, 1, 18, 7, 1); p(wh, 2, 20, 6, 1); p(wh, 3, 22, 5, 1); p(wh, 24, 18, 7, 1); p(wh, 24, 20, 6, 1); p(wh, 24, 22, 5, 1);
+  return outline(c, '#15111a');
+}
+function makeSuitcase() { // раскрытый чемодан: слева вещи, правая половина свободна для кошки
+  const c = mk(28, 14), p = pen(c), sh = '#565b6b', sh2 = '#3f4352', ln = '#23222b';
+  p(sh, 0, 1, 13, 12); p(sh, 14, 0, 14, 14); p(sh2, 0, 12, 13, 1); p(sh2, 14, 13, 14, 1); p(ln, 1, 2, 11, 9); p(ln, 15, 1, 12, 11); p(sh2, 13, 3, 1, 8);
+  p('#f2efe6', 5, 4, 5, 1); p('#f2efe6', 4, 5, 2, 3); p('#f2efe6', 8, 5, 2, 3); p('#f2efe6', 5, 8, 4, 1); p('#3b3f4e', 2, 3, 3, 3); p('#aeb7c2', 2, 8, 2, 2); p('#3b3f4e', 9, 8, 2, 2);
+  for (const x of [17, 21, 25]) p('#4a4856', x, 3 + (x % 3), 1, 1);
+  return outline(c);
+}
+function makePaw(col = '#ff8fb0') { const c = mk(10, 8), p = pen(c); p(col, 2, 0, 2, 2); p(col, 6, 0, 2, 2); p(col, 0, 2, 2, 2); p(col, 8, 2, 2, 2); p(col, 3, 3, 4, 1); p(col, 2, 4, 6, 3); p(col, 3, 7, 4, 1); return outline(c); }
+
+/* ---------- праздник в зале ---------- */
+function makeBalloons(cols) { // связка из трех шаров на грузике
+  const c = mk(24, 40), p = pen(c), pos = [[6, 8], [16, 5], [11, 15]];
+  p.g.strokeStyle = '#f4efe2'; p.g.lineWidth = 1; for (const [x, y] of pos) { p.g.beginPath(); p.g.moveTo(x + 0.5, y + 6); p.g.lineTo(12.5, 36); p.g.stroke(); }
+  pos.forEach(([x, y], i) => { const col = cols[i % cols.length]; for (let yy = -6; yy <= 6; yy++) for (let xx = -5; xx <= 5; xx++) if ((xx / 5.2) ** 2 + (yy / 6.2) ** 2 <= 1) p(xx + yy < -4 ? shade(col, 0.4) : xx + yy > 5 ? shade(col, -0.2) : col, x + xx, y + yy); p(shade(col, -0.25), x - 1, y + 7, 2, 1); p('#fff', x - 3, y - 3, 1, 2); });
+  p('#8a4a1c', 10, 36, 5, 4); p('#b77443', 10, 36, 5, 1);
+  return outline(c);
+}
+function makeGramophone() {
+  const c = mk(18, 22), p = pen(c);
+  p('#a8653a', 4, 14, 13, 8); p('#8a4f2c', 4, 20, 13, 2); p('#c98550', 4, 14, 13, 1); p('#2a2233', 6, 12, 9, 2); p('#4a4650', 7, 12, 3, 1); p(GOLD2, 15, 16, 2, 2);
+  p(GOLD2, 11, 9, 2, 4); p(GOLD2, 9, 7, 3, 3);
+  for (let y = 0; y < 11; y++) for (let x = 0; x < 11; x++) { const q = Math.hypot((x - 5) / 5.2, (y - 5) / 5.2); if (q <= 1) p(q > 0.72 ? GOLD : q > 0.4 ? GOLD2 : '#7a5210', x, y); }
+  p('#fff4c9', 2, 2, 2, 1); p('#fff4c9', 1, 3, 1, 2);
+  return outline(c);
+}
+function makeNote(col) { const c = mk(6, 8), p = pen(c); p(col, 3, 0, 1, 6); p(col, 4, 0, 2, 2); p(col, 0, 5, 4, 3); p.clear(0, 5); p.clear(0, 7); return outline(c); }
+
+/* ---------- цветы-воспоминания: пион, ранункулюс, пионовидная роза ---------- */
+function makeBloom(kind, col) {
+  const c = mk(11, 14), p = pen(c), d1 = shade(col, -0.13), d2 = shade(col, -0.28), l1 = shade(col, 0.4);
+  p('#3f8a2e', 5, 8, 1, 6); p('#5fbf45', 2, 10, 3, 1); p('#5fbf45', 1, 9, 2, 1); p('#5fbf45', 6, 11, 3, 1); p('#5fbf45', 8, 10, 2, 1);
+  for (let y = 0; y < 10; y++) for (let x = 0; x < 11; x++) {
+    const dx = x - 5, dy = y - 4.5, q = Math.hypot(dx / 5.3, dy / 4.9); if (q > 1) continue; let col2 = col;
+    if (kind === 'ranunculus') col2 = q < 0.22 ? '#b7cf62' : q < 0.45 ? d2 : q < 0.66 ? col : q < 0.84 ? d1 : l1;           // тугие концентрические кольца
+    else if (kind === 'rose') { const ang = Math.atan2(dy, dx) + q * 5; col2 = q < 0.55 ? (Math.sin(ang * 2) > 0.2 ? d2 : d1) : (q > 0.82 ? l1 : col); } // чаша с закрученной серединой
+    else col2 = q > 0.8 ? ((x + y) % 2 ? l1 : col) : hash2(x, y, 77) > 0.62 ? d1 : q < 0.3 ? d2 : (hash2(x, y, 78) > 0.75 ? l1 : col);     // пышный махровый шар
+    p(col2, x, y);
+  }
+  return outline(c);
+}
+
+/* ---------- букет из собранных цветов ---------- */
+function makeBouquet(blooms) { // большой: настоящие головки цветов в крафтовой обертке с бантом
+  const c = mk(46, 50), p = pen(c), g = p.g, n = blooms.length;
+  const table = { 1: [1], 2: [2], 3: [3], 4: [2, 2], 5: [2, 3], 6: [3, 3], 7: [2, 3, 2], 8: [2, 3, 3], 9: [3, 3, 3], 10: [3, 4, 3] };
+  let rows = table[n]; if (!rows) { rows = []; let left = n; while (left > 0) { rows.push(Math.min(4, left)); left -= 4; } }
+  const top = 21 - rows.length * 7;
+  for (const [x, y] of [[4, top + 9], [38, top + 9], [9, top + 3], [33, top + 3], [21, Math.max(0, top - 3)]]) { p('#3f8a2e', x, y, 4, 8); p('#5fbf45', x + 1, y, 2, 6); p('#8ad65f', x + 1, y + 1, 1, 3); }
+  for (let y = 21; y < 48; y++) { const hw = Math.round(19 - (y - 21) * 0.62); for (let x = 23 - hw; x < 23 + hw; x++) p(x < 23 - hw + 3 || x >= 23 + hw - 2 ? '#fff7e8' : (x * 2 + y) % 9 === 0 ? '#d6bb88' : '#ecd7ae', x, y); }
+  p('#fff7e8', 5, 20, 36, 2);
+  let k = 0; rows.forEach((cnt, r) => { for (let i = 0; i < cnt; i++) { const x = Math.round(23 - 6.5 + (i - (cnt - 1) / 2) * 10), y = top + r * 7; g.drawImage(blooms[k++], 0, 0, 13, 12, x, y, 13, 12); } });
+  p('#e2445c', 16, 38, 14, 3); p('#e2445c', 12, 35, 6, 7); p('#e2445c', 28, 35, 6, 7); p('#ff8fa3', 13, 36, 2, 2); p('#ff8fa3', 29, 36, 2, 2); p('#b8324a', 21, 36, 4, 6); p('#e2445c', 19, 42, 3, 5); p('#e2445c', 25, 42, 3, 5);
+  return outline(c);
+}
+function makeBouquetSmall(cols) { // маленький: для рук в зале и значка в диалоге
+  const c = mk(15, 15), p = pen(c);
+  for (let y = 7; y < 15; y++) { const hw = Math.round(6 - (y - 7) * 0.72); for (let x = 7 - hw; x <= 7 + hw; x++) p(x === 7 - hw ? '#fff7e8' : '#ecd7ae', x, y); }
+  p('#5fbf45', 0, 5, 2, 3); p('#5fbf45', 13, 5, 2, 3); p('#3f8a2e', 6, 9, 3, 2);
+  const pos = [[6, 3], [3, 4], [9, 4], [6, 0], [1, 6], [11, 6], [4, 7], [8, 7], [3, 1], [9, 1]];
+  cols.forEach((col, i) => { const [x, y] = pos[i % pos.length]; p(col, x, y, 3, 3); p(shade(col, -0.28), x + 1, y + 1, 1, 1); p(shade(col, 0.4), x, y, 1, 1); });
+  p('#e2445c', 5, 11, 5, 2); p('#b8324a', 7, 11, 1, 3);
+  return outline(c);
+}
+
+/* ---------- участок Петруновских: сетка, мяч, кролики ---------- */
+function makeNet(tiles) {
+  const w = tiles * 16 + 6, c = mk(w, 20), p = pen(c);
+  p('#7a4a2a', 0, 0, 2, 20); p('#7a4a2a', w - 2, 0, 2, 20); p('#a8653a', 0, 0, 1, 20); p('#a8653a', w - 2, 0, 1, 20);
+  p('#ffffff', 2, 1, w - 4, 1); p('#ffffff', 2, 10, w - 4, 1);
+  for (let y = 2; y < 10; y++) for (let x = 2; x < w - 2; x++) if ((x + y) % 3 === 0 || (x - y + 30) % 3 === 0) p('#e9edf2', x, y);
+  return outline(c);
+}
+function makeBall() { const c = mk(7, 7), p = pen(c); for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) if (Math.hypot(x - 3, y - 3) <= 3.3) p((x + y) % 4 < 2 ? '#fff9e8' : (x > y ? '#f7c842' : '#52aee6'), x, y); return outline(c); }
+function rabbitFrame(col, inner, f) { // f: 0 сидит, 1 в прыжке
+  const c = mk(11, 10), p = pen(c), sh = shade(col, -0.14);
+  if (f === 0) { p(col, 1, 4, 7, 5); p(sh, 1, 8, 7, 1); p(col, 6, 2, 4, 5); p(col, 7, 0, 1, 3); p(col, 9, 0, 1, 3); p(inner, 9, 1, 1, 1); p('#fff', 0, 5, 2, 2); p(EYE, 8, 3, 1, 1); p(inner, 10, 4, 1, 1); p(sh, 3, 9, 2, 1); p(sh, 7, 9, 2, 1); }
+  else { p(col, 0, 4, 8, 4); p(sh, 0, 7, 8, 1); p(col, 7, 2, 4, 4); p(col, 6, 0, 2, 2); p(col, 5, 1, 2, 2); p('#fff', 0, 3, 1, 2); p(EYE, 9, 3, 1, 1); p(inner, 10, 4, 1, 1); p(sh, 0, 8, 2, 1); p(sh, 8, 6, 2, 1); }
+  return outline(c);
+}
+function rabbitSheet(col, inner) { const r = [rabbitFrame(col, inner, 0), rabbitFrame(col, inner, 1)]; return { right: r, left: r.map(flip) }; }
+
+/* ---------- значок «у гостя есть поздравление» ---------- */
+function makeBubble() {
+  const c = mk(11, 11), p = pen(c);
+  p('#ffffff', 1, 0, 9, 8); p('#ffffff', 0, 1, 11, 6); p('#ffffff', 4, 8, 3, 1); p('#ffffff', 5, 9, 1, 1);
+  for (const [x, y, w] of [[2, 2, 3], [6, 2, 3], [2, 3, 7], [3, 4, 5], [4, 5, 3], [5, 6, 1]]) p('#e2445c', x, y, w, 1); p('#ff9aa8', 3, 2, 1, 1);
+  return outline(c);
+}
+
+</script>
+<script>
+/* ===================== ДВИЖОК ===================== */
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const cv = $('game'), ctx = cv.getContext('2d');
+  const SPEED = 5.2, D4 = [[0, -1], [1, 0], [0, 1], [-1, 0]], DIRV = { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let SCALE = 3, VW = 0, VH = 0, last = 0;
+  let state, maps, pl, pigs, trail, cam, confetti, tapMark, toastT = 0, gen = 0;
+  const A = {}; // кэш графики
+
+  /* ---------- звук ---------- */
+  let AC = null, muted = false;
+  function tone(f, dur, type = 'square', vol = 0.05, when = 0, slide) {
+    if (!AC || muted) return; const t = AC.currentTime + when, o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function toneAt(f, dur, type, vol, t) { if (!AC || muted) return; const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + 0.02); }
+  // Мелодия зала: «Happy Birthday to You» (напев 1893 года). Запись: [частота, длительность в долях], размер 3/4
+  const BEAT = 0.4, STEP = BEAT / 4, LOOP = 96;
+  const TUNE = [[392, .75], [392, .25], [440, 1], [392, 1], [523, 1], [494, 2], [392, .75], [392, .25], [440, 1], [392, 1], [587, 1], [523, 2],
+    [392, .75], [392, .25], [784, 1], [659, 1], [523, 1], [494, 1], [440, 1], [698, .75], [698, .25], [659, 1], [523, 1], [587, 1], [523, 2]];
+  // аккомпанемент «ум-па-па»: один аккорд на такт, первый такт начинается после затакта
+  const CHORDS = [[131, 165, 196], [98, 147, 196], [98, 147, 196], [131, 165, 196], [131, 165, 196], [87, 131, 175], [131, 165, 196], [131, 165, 196]];
+  const EV = []; { let b = 0; for (const [f, d] of TUNE) { EV.push([Math.round(b * 4), f, d * BEAT * 0.92, 'square', 0.024]); EV.push([Math.round(b * 4), f * 2, d * BEAT * 0.5, 'triangle', 0.012]); b += d; }
+    CHORDS.forEach((c, k) => { const s = (1 + k * 3) * 4; EV.push([s, c[0], BEAT * 0.9, 'triangle', 0.075]); for (const q of [1, 2]) { const t = (s + q * 4) % LOOP, ch = (k === 6 && q === 2) ? [147, 196] : [c[1], c[2]]; for (const f of ch) EV.push([t, f, BEAT * 0.5, 'triangle', 0.036]); } }); }
+  let musicTimer = null, musicNext = 0, musicStep = 0;
+  function musicStart() { if (!AC || musicTimer) return; musicNext = AC.currentTime + 0.15; musicStep = 0; musicTimer = setInterval(() => { while (musicNext < AC.currentTime + 0.35) { const s = musicStep % LOOP; for (const e of EV) if (e[0] === s) toneAt(e[1], e[2], e[3], e[4], musicNext); musicNext += STEP; musicStep++; } }, 100); }
+  function musicStop() { if (musicTimer) clearInterval(musicTimer); musicTimer = null; }
+  // Граммофон в зале: по нажатию играет аудиофайл, лежащий рядом с игрой (HALL_TRACK.file). Повторное нажатие возвращает мелодию
+  let track = null, trackOn = false;
+  function trackStop() { if (track) { try { track.pause(); track.currentTime = 0; } catch (e) { } } trackOn = false; }
+  function trackPrime() { // на iOS звук должен впервые стартовать прямо в обработчике касания
+    if (trackOn) return; if (!track) { track = new Audio(HALL_TRACK.file); track.loop = true; track.preload = 'auto'; }
+    track.muted = true; const pr = track.play(); if (pr && pr.then) pr.then(() => { if (!trackOn) { track.pause(); track.currentTime = 0; } }).catch(() => { });
+  }
+  function toggleTrack() {
+    state.gramSeen = true;
+    if (trackOn) { trackStop(); musicStart(); toast(TEXT.trackOff, A.noteUrl); return; }
+    if (!track) { track = new Audio(HALL_TRACK.file); track.loop = true; track.preload = 'auto'; }
+    const g0 = gen, cur = track; let failed = false;
+    const fail = () => { if (failed || track !== cur) return; failed = true; trackOn = false; track = null; if (g0 === gen && state.map.id === 'hall') { musicStart(); toast(TEXT.trackMissing, A.noteUrl); } };
+    cur.onerror = fail; musicStop(); trackOn = true; cur.muted = muted; cur.volume = HALL_TRACK.volume == null ? 0.8 : HALL_TRACK.volume;
+    try { cur.currentTime = 0; } catch (e) { }
+    const pr = cur.play(); if (pr && pr.then) pr.then(() => { if (!failed && trackOn) toast(TEXT.trackOn, A.noteUrl); }).catch(fail);
+  }
+  const sfx = {
+    pop() { tone(700, 0.09, 'square', 0.05, 0, 160); tone(1400, 0.05, 'triangle', 0.04, 0.02); },
+    blip() { tone(430 + Math.random() * 50, 0.035, 'square', 0.018); },
+    get() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.14, 'square', 0.05, i * 0.085)); },
+    flower() { tone(880, 0.08, 'triangle', 0.07); tone(1320, 0.12, 'triangle', 0.07, 0.07); },
+    meow() { tone(520, 0.08, 'triangle', 0.08, 0, 760); tone(760, 0.3, 'triangle', 0.08, 0.08, 430); },
+    bark() { tone(330, 0.07, 'square', 0.07, 0, 190); tone(360, 0.09, 'square', 0.07, 0.16, 180); },
+    squeak() { tone(900, 0.09, 'sine', 0.09, 0, 1600); tone(1000, 0.09, 'sine', 0.09, 0.13, 1800); tone(1100, 0.12, 'sine', 0.09, 0.26, 2000); },
+    lock() { tone(140, 0.12, 'square', 0.05); tone(110, 0.15, 'square', 0.05, 0.1); },
+    gate() { tone(90, 0.5, 'sawtooth', 0.05, 0, 60); tone(392, 0.2, 'square', 0.04, 0.4); tone(523, 0.3, 'square', 0.04, 0.6); },
+    shine() { [784, 988, 1175, 1568, 1976].forEach((f, i) => tone(f, 0.25, 'triangle', 0.06, i * 0.07)); },
+    fanfare() { [[523, 0], [523, 0.15], [523, 0.3], [698, 0.45], [880, 0.75], [784, 0.95], [1047, 1.15]].forEach(([f, t]) => tone(f, 0.28, 'square', 0.05, t)); }
+  };
+
+  /* ---------- карты ---------- */
+  function newMap(id, w, h, fill) { const m = { id, w, h, fill, ground: [], solid: [], objects: [], ents: [], inter: [], flowers: [], bg: '#1b1420', seed: 7 }; for (let y = 0; y < h; y++) { m.ground.push(Array(w).fill(fill)); m.solid.push(Array(w).fill(false)); } return m; }
+  function obj(m, img, tx, ty, o = {}) { const c = typeof img === 'function' ? img(0) : img; m.objects.push({ img, x: tx * T + 8 - Math.round(c.width / 2) + (o.dx || 0), y: ty * T + T - c.height + 1 + (o.dy || 0), baseY: ty * T + 15 + (o.z || 0), w: c.width, h: c.height }); }
+  function npc(m, d, look, x, y, dir, extra) { const L = LOOKS[look]; const e = Object.assign({ kind: 'npc', id: d.id, data: d, name: d.name, x, y, px: x * T, py: y * T, dir: dir || 'down', dir0: dir || 'down', frame: 0, sheet: L.pig ? A.sheets[look] : A.sheets[look], face: A.faces[look], solid: true, ox: 0, ph: hash2(x, y, 7) }, extra || {}); m.ents.push(e); return e; }
+
+  // Все люди с осколками одним списком: одиночные жители и члены семей (у семьи один осколок на всех)
+  function people() { const out = []; for (const d of CAST) { if (d.members) d.members.forEach((mm, i) => out.push({ id: d.id + i, name: mm.name, look: mm.look, x: mm.x, y: mm.y, hall: mm.hall, after: mm.after || d.after, src: d, mem: mm })); else out.push({ id: d.id, name: d.name, look: d.look, x: d.x, y: d.y, hall: d.hall, after: d.after, src: d, mem: null }); } return out; }
+  function buildVillage() {
+    const W = 54, m = newMap('village', W, 32, 'g'); m.bg = '#4f9a38'; m.seed = 11; m.critters = [];
+    const G = (ch, x, y, w, h) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) m.ground[y + j][x + i] = ch; };
+    const S = (x, y, w = 1, h = 1) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) m.solid[y + j][x + i] = true; };
+    G('s', 14, 8, 12, 4); G('p', 19, 12, 2, 20); G('p', 5, 18, 46, 2); G('p', 16, 16, 8, 6); G('p', 7, 15, 1, 3); G('p', 32, 15, 1, 3); G('p', 15, 25, 4, 1); G('p', 21, 26, 10, 1); G('p', 30, 25, 1, 1); G('t', 34, 23, 3, 2);
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) { if (((x - 9) / 4.6) ** 2 + ((y - 25) / 3.1) ** 2 <= 1) { m.ground[y][x] = 'w'; m.solid[y][x] = true; } if (x <= 1 || x >= W - 2 || y >= 31 || y <= 0) m.solid[y][x] = true; }
+    // замок, ворота, зеркало
+    S(12, 0, 16, 8);
+    m.objects.push({ img: () => state.gateOpen ? A.castleOpen : A.castle, x: 12 * T - 1, y: -1, baseY: 8 * T - 2, w: 258, h: 130 });
+    for (const x of [18, 21]) { S(x, 8); obj(m, t => A.brazier[(t * 7 | 0) % 2], x, 8); }
+    S(16, 9); obj(m, () => (state.mirrorDone || state.shards.length >= CAST.length) ? A.mirrorFull : A.mirror, 16, 9);
+    m.inter.push({ id: 'mirror', tiles: [[16, 9]], hit: [[16, 9], [16, 8]], act: actMirror });
+    m.inter.push({ id: 'gate', tiles: [[19, 7], [20, 7]], hit: [[19, 7], [20, 7], [19, 6], [20, 6], [19, 5], [20, 5]], act: actGate });
+    // дома
+    const houses = [[5, 12, '#c9573c', '#ecd9a8'], [30, 12, '#4f8fc0', '#f1e3c0'], [28, 22, '#7fae4a', '#ecd9a8']];
+    for (const [fx, fy, roof, wall] of houses) { S(fx, fy, 5, 3); const c = makeHouse(roof, wall); m.objects.push({ img: c, x: fx * T - 1, y: (fy + 3) * T - 77, baseY: (fy + 3) * T - 1, w: c.width, h: c.height }); }
+    // площадь и мелочи
+    S(18, 17, 4, 1); m.objects.push({ img: A.table, x: 18 * T - 1, y: 17 * T - 15, baseY: 17 * T + 15, w: 66, h: 32 });
+    m.inter.push({ id: 'cake', tiles: [[18, 17], [19, 17], [20, 17], [21, 17]], hit: [[18, 17], [19, 17], [20, 17], [21, 17], [19, 16], [20, 16]], act: () => cakeBoom(18 * T + 32, 17 * T - 8) });
+    S(11, 16); obj(m, makeWell(), 11, 16);
+    S(24, 27); obj(m, makeHutch(), 24, 27); obj(m, makeHay(), 23, 27, { z: -9 }); obj(m, makeHay(), 25, 28, { z: -9 });
+    S(18, 29); obj(m, makeSign(), 18, 29); m.inter.push({ id: 'sign', tiles: [[18, 29]], hit: [[18, 29], [18, 28]], act: () => say([{ text: TEXT.sign }]) });
+    const fence = makeFence(); for (let x = 33; x <= 37; x++) { S(x, 22); obj(m, fence, x, 22); }
+    // участок семьи Петруновских на востоке: дом, волейбольная площадка, кролики
+    const EST = { x0: 37, y0: 8, x1: 51, y1: 17 };
+    G('p', 42, 13, 1, 5); G('S', 46, 11, 4, 5);
+    S(40, 10, 5, 3); { const c = makeHouse('#9a5a3c', '#f2d27a'); m.objects.push({ img: c, x: 40 * T - 1, y: 13 * T - 77, baseY: 13 * T - 1, w: c.width, h: c.height }); }
+    S(46, 13, 4, 1); { const c = makeNet(4); m.objects.push({ img: c, x: 46 * T - 4, y: 14 * T - c.height - 3, baseY: 13 * T + 12, w: c.width, h: c.height }); }
+    { const fence2 = makeFence(); for (let x = 38; x <= 50; x++) { if (x === 42) continue; S(x, 17); obj(m, fence2, x, 17); } }
+    S(38, 13); obj(m, makeHutch(), 38, 13); obj(m, makeHay(), 39, 13, { z: -9 });
+    [['#fbf7ef', '#f0a2a8'], ['#b9b3ad', '#f0a2a8'], ['#a8713f', '#f0a2a8'], ['#fbf7ef', '#f0a2a8']].forEach((cc, i) => { const s = rabbitSheet(cc[0], cc[1]); m.critters.push({ s, zone: [38, 14, 40, 16], px: (38 + (i % 3)) * T + 3, py: (14 + (i % 2) * 2) * T + 2, fx: 0, fy: 0, tx: 0, ty: 0, t: 1, wait: 0.4 + i * 0.7, dir: i % 2 ? 'left' : 'right' }); });
+    // жители
+    for (const q of people()) npc(m, q, q.look, q.x, q.y, 'down', { given: false, src: q.src, mem: q.mem });
+    for (const d of PIGS) { const e = npc(m, d, d.look, d.x, d.y, d.dir || 'down', { kind: 'pig', anim: 0 }); pigs.push(e); if (d.suitcase) obj(m, A.suitcase, d.x, d.y, { dx: -7, z: -6 }); if (d.hay) obj(m, makeHay(), d.x + 1, d.y, { z: -9 }); }
+    // зоны, куда не ставим деревья
+    const res = new Set(), key = (x, y) => x + ',' + y, mark = (x, y, r = 0) => { for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) res.add(key(x + i, y + j)); };
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) { if (m.ground[y][x] !== 'g') mark(x, y, 1); if (m.solid[y][x] && x > 1 && x < W - 2 && y > 0 && y < 31) mark(x, y, 1); }
+    for (let y = EST.y0; y <= EST.y1; y++) for (let x = EST.x0; x <= EST.x1; x++) mark(x, y);
+    for (const [fx, fy] of houses) for (let y = fy - 2; y < fy + 4; y++) for (let x = fx - 1; x < fx + 6; x++) mark(x, y);
+    for (let y = 0; y < 13; y++) for (let x = 11; x < 29; x++) mark(x, y);
+    for (const e of m.ents) mark(e.x, e.y, 2); mark(20, 29, 2);
+    const r = rng(2024), trees = [], free = (x, y, gap) => x >= 0 && y >= 0 && x < m.w && y < m.h && m.ground[y][x] === 'g' && !res.has(key(x, y)) && !m.solid[y][x] && trees.every(t => Math.abs(t[0] - x) + Math.abs(t[1] - y) >= gap);
+    const tree = (x, y, inner) => { trees.push([x, y]); m.solid[y][x] = true; const k = r(); obj(m, A.trees[(inner && k < 0.2) ? 5 : k < 0.5 ? 3 + (r() * 2 | 0) : (r() * 3 | 0)], x, y); };
+    for (let y = 1; y < m.h; y++) for (let x = 0; x < m.w; x++) { const band = x <= 2 || x >= W - 3 || y >= 30 || (y <= 5 && (x < 11 || x > 28)); if (band && (x + y * 2) % 3 === 0 && m.ground[y][x] === 'g' && !res.has(key(x, y)) && trees.every(t => Math.abs(t[0] - x) + Math.abs(t[1] - y) >= 2)) tree(x, y); }
+    for (let i = 0; i < 95; i++) { const x = 3 + (r() * (W - 6) | 0), y = 6 + (r() * 24 | 0); if (free(x, y, 3)) tree(x, y, true); }
+    for (let i = 0; i < 54; i++) { const x = 3 + (r() * (W - 6) | 0), y = 6 + (r() * 24 | 0); if (free(x, y, 2)) { m.solid[y][x] = true; trees.push([x, y]); if (r() < 0.7) obj(m, A.bushes[r() * 3 | 0], x, y, { dy: -1 }); else obj(m, A.rocks[r() * 2 | 0], x, y, { dy: -2 }); if (trees.length > 84) break; } }
+    m.groundCv = renderGround(m);
+    { const cp = pen(m.groundCv), x0 = 46 * T + 2, y0 = 11 * T + 2, w = 4 * T - 4, h = 5 * T - 4; cp('#ffffff', x0, y0, w, 1); cp('#ffffff', x0, y0 + h - 1, w, 1); cp('#ffffff', x0, y0, 1, h); cp('#ffffff', x0 + w - 1, y0, 1, h); }  // разметка площадки
+    // 25 цветов в достижимых местах
+    const b = flood(m, 20, 29), cand = [];
+    for (let y = 1; y < m.h - 1; y++) for (let x = 2; x < m.w - 2; x++) if (b.dist[y * m.w + x] > 0 && m.ground[y][x] === 'g' && !m.ents.some(e => Math.abs(e.x - x) + Math.abs(e.y - y) < 2)) cand.push([x, y]);
+    for (let i = cand.length - 1; i > 0; i--) { const j = r() * (i + 1) | 0;[cand[i], cand[j]] = [cand[j], cand[i]]; }
+    for (let gap = 5; gap >= 1 && m.flowers.length < FLOWERS.length; gap--) for (const [x, y] of cand) { if (m.flowers.length >= FLOWERS.length) break; if (m.flowers.every(f => Math.abs(f.x - x) + Math.abs(f.y - y) >= gap)) m.flowers.push({ x, y, taken: false, i: m.flowers.length }); }
+    return m;
+  }
+  function buildHall() {
+    const m = newMap('hall', 16, 12, 'F'); m.bg = '#1b1420'; m.seed = 5;
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 16; x++) { m.ground[y][x] = 'X'; m.solid[y][x] = true; }
+    for (let y = 3; y < 12; y++) { m.ground[y][7] = 'C'; m.ground[y][8] = 'C'; }
+    m.groundCv = renderGround(m);
+    m.objects.push({ img: A.hallWall, x: 0, y: 0, baseY: 47, w: 256, h: 48 });
+    for (let x = 6; x < 10; x++) m.solid[3][x] = true; m.objects.push({ img: A.table, x: 6 * T - 1, y: 3 * T - 15, baseY: 3 * T + 15, w: 66, h: 32 });
+    m.inter.push({ id: 'cake', tiles: [[6, 3], [7, 3], [8, 3], [9, 3]], hit: [[6, 3], [7, 3], [8, 3], [9, 3], [7, 2], [8, 2]], act: () => cakeBoom(6 * T + 32, 3 * T - 8) });
+    for (const x of [1, 13]) { for (let y = 5; y < 9; y++) { m.solid[y][x] = true; m.solid[y][x + 1] = true; } m.objects.push({ img: A.sideTable, x: x * T, y: 5 * T - 6, baseY: 9 * T - 1, w: 32, h: 74 }); }
+    const sets = [['#e2445c', '#f7c842', '#52aee6'], ['#8a6fd0', '#f7a8c8', '#7fc45a'], ['#f7c842', '#52aee6', '#f7a8c8'], ['#7fc45a', '#e2445c', '#8a6fd0']];
+    [[0, 4], [15, 4], [0, 11], [15, 11]].forEach(([x, y], i) => { const c = makeBalloons(sets[i]); m.objects.push({ img: c, x: x * T + 8 - 13, y: y * T + 16 - c.height, baseY: y * T + 15, w: c.width, h: c.height, bob: { a: 1.6, s: 1.7 + i * 0.23, p: i * 1.9 } }); });
+    m.solid[3][13] = true; obj(m, A.gramophone, 13, 3); m.horn = { x: 13 * T + 4, y: 3 * T - 2 }; m.inter.push({ id: 'gram', tiles: [[13, 3]], hit: [[13, 3], [13, 2]], act: toggleTrack });
+    const spots = [[4, 5, 'right'], [11, 5, 'left'], [4, 8, 'right'], [11, 8, 'left'], [5, 10, 'right'], [10, 10, 'left'], [3, 10, 'right'], [12, 10, 'left']];
+    people().forEach((q, i) => { const s = spots[i % spots.length]; npc(m, q, q.look, s[0], s[1], s[2], { hall: true, src: q.src, mem: q.mem }); });
+    npc(m, { id: 'husband', name: HUSBAND.name }, HUSBAND.look, 7, 5, 'down', { kind: 'husband', ox: 8, tiles: [[7, 5], [8, 5]] });
+    return m;
+  }
+
+  /* ---------- поиск пути ---------- */
+  function blocked(x, y, m = state.map) {
+    if (x < 0 || y < 0 || x >= m.w || y >= m.h) return true;
+    if (m.solid[y][x]) { if (m.id === 'village' && state.gateOpen && y === 7 && (x === 19 || x === 20)) return false; return true; }
+    for (const e of m.ents) { if (!e.solid) continue; if (e.tiles) { if (e.tiles.some(t => t[0] === x && t[1] === y)) return true; } else if (e.x === x && e.y === y) return true; }
+    return false;
+  }
+  function flood(m, sx, sy) { const W = m.w, dist = new Int16Array(W * m.h).fill(-1), prev = new Int32Array(W * m.h).fill(-1), q = [sy * W + sx]; dist[q[0]] = 0; for (let i = 0; i < q.length; i++) { const c = q[i], x = c % W, y = (c / W) | 0; for (const [dx, dy] of D4) { const nx = x + dx, ny = y + dy; if (blocked(nx, ny, m)) continue; const n = ny * W + nx; if (dist[n] >= 0) continue; dist[n] = dist[c] + 1; prev[n] = c; q.push(n); } } return { dist, prev, W }; }
+  function trace(b, tx, ty) { const out = []; let c = ty * b.W + tx; if (b.dist[c] < 0) return null; while (b.prev[c] >= 0) { out.push([c % b.W, (c / b.W) | 0]); c = b.prev[c]; } return out.reverse(); }
+  function interAt(tx, ty) { const m = state.map; for (const e of m.ents) { if (e.kind === 'pig' && e.following) continue; const ts = e.tiles || [[e.x, e.y]]; if (ts.some(t => t[0] === tx && (t[1] === ty || (e.kind !== 'pig' && t[1] - 1 === ty)))) return { tiles: ts, act: () => actEnt(e), ent: e }; } for (const it of m.inter) if (it.hit.some(t => t[0] === tx && t[1] === ty)) return it; return null; }
+  function interTile(tx, ty) { const m = state.map; for (const e of m.ents) { if (e.kind === 'pig' && e.following) continue; const ts = e.tiles || [[e.x, e.y]]; if (ts.some(t => t[0] === tx && t[1] === ty)) return { tiles: ts, act: () => actEnt(e), ent: e }; } for (const it of m.inter) if (it.tiles.some(t => t[0] === tx && t[1] === ty)) return it; return null; }
+
+  /* ---------- ввод ---------- */
+  const keys = [];
+  const keyDir = k => ({ arrowup: 'up', w: 'up', 'ц': 'up', arrowdown: 'down', s: 'down', 'ы': 'down', arrowleft: 'left', a: 'left', 'ф': 'left', arrowright: 'right', d: 'right', 'в': 'right' })[k];
+  addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k === ' ' || k === 'enter' || k === 'e' || k === 'у') { if (state.mode === 'dialog') { e.preventDefault(); advance(); } else if (state.mode === 'play') { e.preventDefault(); interactFacing(); } return; } const d = keyDir(k); if (d) { e.preventDefault(); if (!keys.includes(d)) keys.push(d); } });
+  addEventListener('keyup', e => { const d = keyDir(e.key.toLowerCase()); const i = keys.indexOf(d); if (i >= 0) keys.splice(i, 1); });
+  addEventListener('blur', () => { keys.length = 0; });
+  cv.addEventListener('pointerdown', e => { if (state.mode !== 'play') return; e.preventDefault(); const r = cv.getBoundingClientRect(), tx = Math.floor((cam.rx + (e.clientX - r.left) / SCALE) / T), ty = Math.floor((cam.ry + (e.clientY - r.top) / SCALE) / T); const it = interAt(tx, ty); if (it && it.id === 'gram') trackPrime(); tap(tx, ty); });
+  $('dlg').addEventListener('pointerdown', e => { e.preventDefault(); advance(); });
+
+  function tap(tx, ty) {
+    const m = state.map, sx = pl.moving ? pl.nx : pl.x, sy = pl.moving ? pl.ny : pl.y;
+    tapMark = { x: tx, y: ty, t: 0.4 };
+    const it = interAt(tx, ty);
+    if (it) {
+      if (it.id === 'gate' && state.gateOpen) { const b = flood(m, sx, sy), p = trace(b, 19, 7) || trace(b, 20, 7); if (p) { pl.path = p; pl.pending = null; } return; }
+      const b = flood(m, sx, sy); let best = null;
+      for (const t of it.tiles) for (const [dx, dy] of D4) { const x = t[0] + dx, y = t[1] + dy; if (x < 0 || y < 0 || x >= m.w || y >= m.h) continue; const d = (x === sx && y === sy) ? 0 : b.dist[y * m.w + x]; if (d >= 0 && (!best || d < best.d)) best = { x, y, d, t }; }
+      if (best) { pl.path = trace(b, best.x, best.y) || []; pl.pending = { it, t: best.t }; }
+      return;
+    }
+    const b = flood(m, sx, sy); let gx = tx, gy = ty;
+    if (tx < 0 || ty < 0 || tx >= m.w || ty >= m.h || b.dist[ty * m.w + tx] < 0) { let bd = 1e9; for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) { if (b.dist[y * m.w + x] < 0) continue; const d = (x - tx) ** 2 + (y - ty) ** 2 + b.dist[y * m.w + x] * 0.01; if (d < bd) { bd = d; gx = x; gy = y; } } }
+    pl.path = trace(b, gx, gy) || []; pl.pending = null;
+  }
+  function interactFacing() { const [dx, dy] = DIRV[pl.dir]; let it = interTile(pl.x + dx, pl.y + dy); if (!it) for (const [ax, ay] of D4) { it = interTile(pl.x + ax, pl.y + ay); if (it) { face(pl, pl.x + ax, pl.y + ay); break; } } if (it) it.act(); }
+  function face(e, tx, ty) { const dx = tx - e.x, dy = ty - e.y; e.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
+
+  /* ---------- диалоги ---------- */
+  let dq = [], dcur = null, dch = 0, ddone = null, dblip = 0;
+  function say(lines, done) { dq = lines.slice(); ddone = done || null; state.mode = 'dialog'; $('dlg').hidden = false; nextLine(); }
+  function nextLine() {
+    if (!dq.length) { $('dlg').hidden = true; dcur = null; state.mode = 'play'; state.talk = null; const d = ddone; ddone = null; if (d) d(); return; }
+    dcur = dq.shift(); dch = 0; $('dlgText').textContent = ''; $('dlgMore').style.visibility = 'hidden';
+    const fc = $('dlgFace'), g = fc.getContext('2d'), side = $('dlgSide');
+    if (dcur.face || dcur.icon) { side.hidden = false; g.clearRect(0, 0, 34, 34); g.imageSmoothingEnabled = false; if (dcur.face) g.drawImage(dcur.face, 0, 0); else g.drawImage(dcur.icon, 17 - dcur.icon.width, 17 - dcur.icon.height, dcur.icon.width * 2, dcur.icon.height * 2); $('dlgWho').textContent = dcur.who || ''; } else side.hidden = true;
+    if (dcur.sfx) dcur.sfx();
+  }
+  function advance() { if (!dcur) return; if (dch < dcur.text.length) { dch = dcur.text.length; $('dlgText').textContent = dcur.text; $('dlgMore').style.visibility = 'visible'; } else nextLine(); }
+  function tickDialog(dt) { if (!dcur || dch >= dcur.text.length) return; const before = dch | 0; dch = Math.min(dcur.text.length, dch + dt * (reduced ? 999 : 46)); if ((dch | 0) !== before) { $('dlgText').textContent = dcur.text.slice(0, dch | 0); dblip += (dch | 0) - before; if (dblip >= 3) { dblip = 0; sfx.blip(); } if (dch >= dcur.text.length) $('dlgMore').style.visibility = 'visible'; } }
+  function toast(text, icon) { const el = $('toast'); $('toastImg').src = icon; $('toastText').textContent = text; el.classList.add('on'); toastT = 4; }
+
+  /* ---------- сюжет ---------- */
+  function goal(k) { state.goal = k; $('goal').textContent = TEXT.goals[k] || ''; $('goal').hidden = !TEXT.goals[k]; }
+  function hud() { $('shardN').textContent = state.shards.length + '/' + CAST.length; $('flowerN').textContent = state.flowers + '/' + maps.village.flowers.length; $('petN').textContent = state.followers.length + '/' + PIGS.length; }
+  function actEnt(e) {
+    face(e, pl.x, pl.y); if (e.tiles) e.dir = 'down'; state.talk = e;
+    const who = e.name, fc = e.face, d = e.data, back = () => { e.dir = e.dir0; };
+    if (e.kind === 'pig') { e.dir = 'down'; say([{ who, face: fc, text: d.line, sfx: sfx[d.sound] || sfx.squeak }], () => { if (!e.following) { e.following = true; e.solid = false; state.followers.push(e); hud(); if (state.followers.length >= PIGS.length && !state.petsAll) petsAll(); } }); return; }
+    if (e.kind === 'husband') { const ls = HUSBAND.lines.map(t => ({ who, face: fc, text: t })); if (state.bouquet && !state.finished) ls.push({ who: TEXT.bouquetName, icon: state.bouquet.small, text: TEXT.bouquetGot + ' ' + state.bouquet.n + ' из ' + maps.village.flowers.length, sfx: sfx.get }); say(ls, showLetter); return; }
+    if (e.hall) { e.heard = true; say([].concat(d.hall).map(t => ({ who, face: fc, text: t })), back); return; }
+    if (e.given) { say([{ who, face: fc, text: d.after }], back); return; }
+    const src = e.src, lines = src.members ? src.members.map(mm => ({ who: mm.name, face: A.faces[mm.look], text: mm.line })) : src.lines.map(t => ({ who, face: fc, text: t }));
+    lines.push({ who: TEXT.shardName, icon: A.shard, text: TEXT.shardGot + ' ' + src.shard, sfx: sfx.get });
+    say(lines, () => { back(); for (const o of maps.village.ents) if (o.src === src) o.given = true; state.shards.push(src); hud(); if (state.shards.length >= CAST.length) { goal('mirror'); say([{ text: TEXT.allShards, sfx: sfx.shine }]); } });
+  }
+  const DANCE = 5.6; // секунд хоровода вокруг принцессы
+  function petsAll() { // все питомцы найдены: праздник и новая способность
+    state.petsAll = true; state.danceT = DANCE; sfx.get(); if (AC) for (const e of EV) if (e[0] < 48) toneAt(e[1], e[2], e[3], e[4] * 1.2, AC.currentTime + 0.5 + e[0] * STEP);
+    state.followers.concat([pl]).forEach((e, i) => { for (let k = 0; k < 3; k++) state.fx.push({ x: e.px + 3 + (k - 1) * 6, y: e.py - 4, t: -(i * 0.12 + k * 0.22), life: 1.3 }); });
+    say([{ who: PIGS.length + '/' + PIGS.length, icon: A.paw, text: TEXT.petsAll }]);
+  }
+  function actMirror() {
+    if (state.mirrorDone) return say([{ text: TEXT.mirrorAfter }]);
+    if (state.shards.length < CAST.length) return say([{ icon: A.shard, who: state.shards.length + '/' + CAST.length, text: TEXT.mirrorNeed, sfx: sfx.lock }]);
+    mirrorScene();
+  }
+  function actGate() { if (!state.gateOpen) say([{ text: TEXT.gateLocked, sfx: sfx.lock }]); else { pl.path = [[pl.x === 20 ? 20 : 19, 7]]; } }
+
+  function drawBigMirror(k, total, reveal) {
+    const c = $('mirrorCv'), g = c.getContext('2d'), p = (col, x, y, w = 1, h = 1) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+    g.clearRect(0, 0, 60, 76); g.imageSmoothingEnabled = false;
+    for (let y = 4; y < 76; y++) for (let x = 0; x < 60; x++) { const q = Math.hypot((x - 29.5) / 29, (y - 40) / 35); if (q <= 1) p(q > 0.93 ? GOLD2 : (q > 0.8 && (x + y) % 6 === 0) ? '#fff4c9' : GOLD, x, y); }
+    p(GOLD, 24, 2, 12, 4); p(GOLD, 22, 0, 2, 4); p(GOLD, 29, 0, 2, 3); p(GOLD, 36, 0, 2, 4); p('#e2445c', 28, 3, 4, 3); p(OUT, 22, 6, 16, 1);
+    const inside = (x, y) => Math.hypot((x - 29.5) / 23, (y - 40) / 29) <= 1;
+    for (let y = 10; y < 70; y++) for (let x = 6; x < 54; x++) { if (!inside(x, y)) continue; const sec = Math.floor(((Math.atan2(y - 40, x - 29.5) + Math.PI) / (2 * Math.PI)) * total + hash2(x >> 2, y >> 2, 91) * 0.35) % total; const lit = sec < k; p(lit ? ((x - y + 80) % 23 < 3 ? '#f4fbff' : (y < 34 ? '#cfeeff' : '#a9dcf7')) : ((x * 3 + y) % 7 === 0 ? '#4a4368' : '#2c2742'), x, y); }
+    const face = reveal ? A.faces.princess : A.faces.wanderer; g.save(); g.beginPath(); g.ellipse(29.5, 40, 22, 28, 0, 0, Math.PI * 2); g.clip(); g.globalAlpha = reveal ? 1 : Math.min(0.85, 0.15 + 0.7 * k / total); g.drawImage(face, 13, 24); g.restore();
+    if (reveal) { for (let i = 0; i < 9; i++) { const x = 8 + (hash2(i, 1, 95) * 44 | 0), y = 14 + (hash2(i, 2, 95) * 50 | 0); if (inside(x, y) && (x < 14 || x > 46 || y < 24 || y > 58)) { p('#fff', x, y - 1, 1, 3); p('#fff', x - 1, y, 3, 1); } } }
+  }
+  function mirrorScene() {
+    state.mode = 'cutscene'; const ov = $('mirror'), list = $('mirrorList'); ov.hidden = false; list.innerHTML = ''; $('mirrorOut').hidden = true; $('mirrorTitle').textContent = TEXT.mirrorTitle; $('mirrorText').textContent = TEXT.mirrorText;
+    const n = state.shards.length; let k = 0; drawBigMirror(0, n, false);
+    const step = () => {
+      if (k < n) { const li = document.createElement('li'); li.textContent = state.shards[k].shard; list.appendChild(li); k++; drawBigMirror(k, n, false); tone(520 + k * 90, 0.12, 'triangle', 0.07); setTimeout(step, reduced ? 250 : 620); }
+      else { $('mirrorCv').classList.add('flash'); sfx.shine(); setTimeout(() => { drawBigMirror(n, n, true); $('mirrorOut').hidden = false; $('mirrorBtn').focus(); }, 350); }
+    }; setTimeout(step, 600);
+  }
+  $('mirrorBtn').addEventListener('click', () => {
+    $('mirror').hidden = true; $('mirrorCv').classList.remove('flash'); state.mirrorDone = true; state.gateOpen = true; pl.sheet = A.sheets.princess; pl.dir = 'down'; state.mode = 'play'; goal('gate');
+    say([{ text: TEXT.gateOpened, sfx: sfx.gate }]);
+  });
+  function fadeTo(fn) { const f = $('fade'), g0 = gen; state.mode = 'cutscene'; f.classList.add('on'); setTimeout(() => { if (g0 === gen) fn(); f.classList.remove('on'); }, 420); }
+  function enterHall() {
+    fadeTo(() => {
+      const got = maps.village.flowers.filter(f => f.taken).map(f => f.i).sort((a, b) => a - b);
+      state.bouquet = got.length ? { n: got.length, big: makeBouquet(got.map(i => A.flowers[i])), small: makeBouquetSmall(got.map(i => FLOWERS[i].col)) } : null;
+      state.map = maps.hall; pl.x = 7; pl.y = 10; pl.px = pl.x * T; pl.py = pl.y * T; pl.dir = 'up'; pl.path = null; pl.pending = null; pl.moving = false; trail = [{ x: 7, y: 11 }, { x: 8, y: 11 }, { x: 6, y: 11 }, { x: 9, y: 11 }];
+      state.followers.forEach((p, i) => { const tr = trail[Math.min(i, trail.length - 1)]; p.px = tr.x * T; p.py = tr.y * T; p.dir = 'up'; }); snapCam(); state.mode = 'play'; goal('hall'); confetti = []; state.hallT = state.t; state.popT = 0.7; state.noteT = 0; musicStart();
+      const g0 = gen; setTimeout(() => { if (g0 === gen) say([{ who: TEXT.chorusName, icon: A.heart, text: TEXT.chorus, sfx: sfx.fanfare }], () => toast(TEXT.hallHint, A.bubbleUrl)); }, 500);
+    });
+  }
+  function showLetter() {
+    state.mode = 'cutscene'; state.finished = true; goal('done'); const el = $('letter'); el.hidden = false;
+    const lb = $('letterBouquet'), lc = $('letterBouquetCap'); lb.hidden = lc.hidden = !state.bouquet;
+    if (state.bouquet) { const bg = lb.getContext('2d'); bg.imageSmoothingEnabled = false; bg.clearRect(0, 0, 48, 52); bg.drawImage(state.bouquet.big, 0, 0); lc.textContent = TEXT.bouquetCap + ' ' + state.bouquet.n; }
+    $('letterTitle').textContent = TEXT.letterTitle; $('letterBody').innerHTML = ''; TEXT.letter.forEach(t => { const p = document.createElement('p'); p.textContent = t; $('letterBody').appendChild(p); });
+    $('letterReal').textContent = TEXT.realWorld; $('letterReal').hidden = !TEXT.realWorld; $('letterSign').textContent = TEXT.signature; $('letterStats').textContent = TEXT.flowersFound + ' ' + state.flowers + '/' + maps.village.flowers.length + '. ' + TEXT.petsFound + ' ' + state.followers.length + '/' + PIGS.length + '.'; $('letterPS').hidden = !state.petsAll; $('letterPS').textContent = TEXT.petsPS; sfx.shine(); $('letterStay').focus({ preventScroll: true }); el.scrollTop = 0;
+  }
+  $('letterStay').addEventListener('click', () => { $('letter').hidden = true; state.mode = 'play'; });
+  $('letterRestart').addEventListener('click', () => { $('letter').hidden = true; init(); beginPlay(); });
+
+  /* ---------- обновление ---------- */
+  function startMove(nx, ny) { trail.unshift({ x: pl.x, y: pl.y }); trail.length = Math.min(trail.length, 6); pl.nx = nx; pl.ny = ny; pl.moving = true; }
+  function arrive() {
+    const m = state.map;
+    if (m.id === 'village') { const f = m.flowers.find(f => !f.taken && f.x === pl.x && f.y === pl.y); if (f) { f.taken = true; state.flowers++; hud(); sfx.flower(); toast(FLOWERS[f.i].text, A.flowerUrl[f.i]); }
+      if (state.gateOpen && pl.y === 7 && (pl.x === 19 || pl.x === 20)) { enterHall(); return true; } }
+    return false;
+  }
+  function update(dt) {
+    state.t += dt;
+    if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').classList.remove('on'); }
+    if (tapMark) { tapMark.t -= dt; if (tapMark.t <= 0) tapMark = null; }
+    if (state.fx.length) { for (const f of state.fx) f.t += dt; state.fx = state.fx.filter(f => f.t < f.life); }
+    tickDialog(dt);
+    // игрок
+    let budget = dt * SPEED, guard = 0;
+    while (budget > 0 && guard++ < 4) {
+      if (pl.moving) { const need = 1 - pl.t; if (budget >= need) { budget -= need; pl.x = pl.nx; pl.y = pl.ny; pl.t = 0; pl.moving = false; if (arrive()) break; } else { pl.t += budget; budget = 0; } }
+      if (!pl.moving) {
+        if (state.mode !== 'play') break;
+        const d = keys[keys.length - 1];
+        if (d) { pl.path = null; pl.pending = null; pl.dir = d; const [dx, dy] = DIRV[d]; if (!blocked(pl.x + dx, pl.y + dy)) startMove(pl.x + dx, pl.y + dy); else break; }
+        else if (pl.path && pl.path.length) { const [nx, ny] = pl.path.shift(); face(pl, nx, ny); if (!blocked(nx, ny)) startMove(nx, ny); else { pl.path = null; break; } }
+        else if (pl.pending) { const pe = pl.pending; pl.pending = null; pl.path = null; if (Math.abs(pe.t[0] - pl.x) + Math.abs(pe.t[1] - pl.y) === 1) { face(pl, pe.t[0], pe.t[1]); pe.it.act(); } break; }
+        else break;
+      }
+    }
+    if (pl.moving) { pl.px = (pl.x + (pl.nx - pl.x) * pl.t) * T; pl.py = (pl.y + (pl.ny - pl.y) * pl.t) * T; pl.anim += dt; pl.frame = [1, 0, 2, 0][(pl.anim * 9 | 0) % 4]; } else { pl.px = pl.x * T; pl.py = pl.y * T; pl.frame = 0; pl.anim = 0; }
+    // свинки бегут следом
+    if (state.danceT > 0) { // хоровод: питомцы бегут по кругу вокруг героини, подпрыгивают и пускают сердечки
+      state.danceT -= dt; const n = state.followers.length, k = Math.min(1, (DANCE - state.danceT) * 2, state.danceT * 2), spin = reduced ? 0 : state.t * 3.4;
+      state.followers.forEach((p, i) => { const a = spin + i * Math.PI * 2 / n, tx = pl.px + Math.cos(a) * 22 * k, ty = pl.py + 3 + Math.sin(a) * 13 * k, q = Math.min(1, dt * 12); p.px += (tx - p.px) * q; p.py += (ty - p.py) * q; const vx = -Math.sin(a), vy = Math.cos(a); p.dir = Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? 'right' : 'left') : (vy > 0 ? 'down' : 'up'); p.anim += dt; p.frame = (p.anim * 10 | 0) % 2; p.x = Math.round(p.px / T); p.y = Math.round(p.py / T); });
+      state.heartT = (state.heartT || 0) - dt; if (state.heartT <= 0 && n) { const p = state.followers[Math.random() * n | 0]; state.fx.push({ x: p.px + 3, y: p.py - 6, t: 0, life: 1.1 }); state.heartT = 0.28; }
+    } else
+    state.followers.forEach((p, i) => { const tr = trail[i]; if (!tr) return; const gx = tr.x * T, gy = tr.y * T, dx = gx - p.px, dy = gy - p.py, d = Math.hypot(dx, dy); if (d > 0.6) { const sp = (d > 40 ? 190 : SPEED * T * 1.05) * dt, k = Math.min(1, sp / d); p.px += dx * k; p.py += dy * k; p.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); p.anim += dt; p.frame = (p.anim * 10 | 0) % 2; } else p.frame = 0; p.x = Math.round(p.px / T); p.y = Math.round(p.py / T); });
+    // кролики на участке: сидят, потом прыгают на соседнее место в своем загоне
+    for (const c of (state.map.critters || [])) { if (c.t < 1) { c.t = Math.min(1, c.t + dt / 0.3); c.px = c.fx + (c.tx - c.fx) * c.t; c.py = c.fy + (c.ty - c.fy) * c.t; }
+      else if ((c.wait -= dt) <= 0 && !reduced) { const z = c.zone; c.fx = c.px; c.fy = c.py; c.tx = Math.max(z[0] * T, Math.min(z[2] * T + 6, c.px + (Math.random() * 2 - 1) * 20)); c.ty = Math.max(z[1] * T, Math.min(z[3] * T + 4, c.py + (Math.random() * 2 - 1) * 14)); c.dir = c.tx >= c.px ? 'right' : 'left'; c.t = 0; c.wait = 0.5 + Math.random() * 2.2; } }
+    // камера
+    const tx = pl.px + 8 - VW / 2, ty = pl.py + 2 - VH / 2, k = Math.min(1, dt * 9); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
+    // зал: хлопушки из углов и ноты из граммофона
+    if (state.map.id === 'hall') {
+      state.popT -= dt; if (state.popT <= 0) { const first = state.t - state.hallT < 1.5, sides = first ? [0, 1] : [state.popSide ^= 1]; for (const s of sides) popper(s ? 250 : 6, 186, s ? -1 : 1); if (state.mode !== 'cutscene' || first) sfx.pop(); state.popT = 3.2; }
+      state.noteT -= dt; if (state.noteT <= 0 && !reduced) { const h = state.map.horn; state.notes.push({ x: h.x, y: h.y, t: 0, life: 2.4, k: Math.random() * 4 | 0, ph: Math.random() * 6 }); state.noteT = 0.55; }
+      for (const n of state.notes) n.t += dt; state.notes = state.notes.filter(n => n.t < n.life);
+    }
+    if (state.pops.length) { for (const q of state.pops) { q.t += dt; q.vy += 170 * dt; q.x += q.vx * dt; q.y += q.vy * dt; } state.pops = state.pops.filter(q => q.t < q.life); }
+    // конфетти в зале
+    if (confetti && state.map.id === 'hall') { const want = reduced ? 20 : 90; while (confetti.length < want) confetti.push({ x: Math.random() * VW, y: -Math.random() * VH, v: 14 + Math.random() * 22, ph: Math.random() * 6, c: ['#f7c842', '#e2445c', '#52aee6', '#7fc45a', '#f7a8c8', '#ffffff'][Math.random() * 6 | 0] }); for (const c of confetti) { c.y += c.v * dt; c.ph += dt * 3; if (c.y > VH + 4) { c.y = -4; c.x = Math.random() * VW; } } }
+  }
+  // Торт взрывается конфетти при нажатии: частицы летят веером вверх и осыпаются
+  function cakeBoom(x, y) { const n = reduced ? 24 : 110, cols = ['#f7c842', '#e2445c', '#52aee6', '#7fc45a', '#f7a8c8', '#ffffff', '#8a6fd0', '#ff8f7a']; for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.5, v = 60 + Math.random() * 150; state.pops.push({ x: x + (Math.random() - 0.5) * 10, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, t: 0, life: 1.5 + Math.random() * 1.3, c: cols[Math.random() * cols.length | 0] }); } sfx.pop(); tone(1047, 0.1, 'triangle', 0.06, 0.05); tone(1568, 0.18, 'triangle', 0.06, 0.12); }
+  function popper(x, y, dir) { const n = reduced ? 10 : 34, cols = ['#f7c842', '#e2445c', '#52aee6', '#7fc45a', '#f7a8c8', '#ffffff', '#8a6fd0']; for (let i = 0; i < n; i++) state.pops.push({ x, y, vx: dir * (20 + Math.random() * 95), vy: -(110 + Math.random() * 120), t: 0, life: 1.6 + Math.random() * 0.9, c: cols[Math.random() * cols.length | 0] }); }
+  // Анимация человека: дыхание и моргание везде, танцы в зале. Возвращает кадр, смещение и направление взгляда
+  function humanAnim(e, t) {
+    const ph = e.ph || 0; let f = ((t * 1.5 + ph * 2) % 2) < 1 ? 0 : 3, dx = 0, dy = 0, dir = e.dir;
+    const toPl = () => { const ax = pl.px - e.px - (e.ox || 0), ay = pl.py - e.py; return Math.abs(ax) > Math.abs(ay) ? (ax > 0 ? 'right' : 'left') : (ay > 0 ? 'down' : 'up'); };
+    if (state.talk !== e) {
+      if (state.map.id === 'hall') {
+        const bt = t / BEAT, u = bt % 1, hop = () => { dy = -Math.round(Math.sin(u * Math.PI) * 3.4); if (dy < -1) f = 4; };
+        if (e.kind === 'husband') { if (!state.finished) { const c = (t + ph) % 3.2; if (c < 1.6) f = ((t * 5 | 0) % 2) ? 4 : 0; else if (c < 2.4) hop(); } }
+        else if (t - state.hallT < 4) hop();                                       // первые секунды прыгают все вместе
+        else { const c = (t + ph * 6.4) % 6.4;
+          if (c < 2) hop();
+          else if (c < 4.4) { const s = (bt * 2 | 0) % 4; f = [1, 0, 2, 0][s]; dx = [-1, 0, 1, 0][s]; dir = ((bt / 2 | 0) % 2) ? 'left' : 'right'; }
+          else { f = ((t * 5 | 0) % 2) ? 4 : 0; dir = toPl(); } }
+      } else if (e.mem && e.mem.volley && !e.given) { const u = (t * 1.5 + ph) % 1; if (u < 0.18 || u > 0.82) f = 4; }   // руки вверх под мяч
+      else if (e.kind === 'npc' && Math.abs(pl.x - e.x) + Math.abs(pl.y - e.y) <= 3) dir = toPl();   // в деревне оборачиваются на путника
+    }
+    if ((f === 0 || f === 3) && dir !== 'up' && ((t + ph * 9) % 3.7) < 0.13) f = 5;
+    return { f, dx, dy, dir };
+  }
+  function snapCam() { cam.x = pl.px + 8 - VW / 2; cam.y = pl.py + 2 - VH / 2; }
+
+  /* ---------- отрисовка ---------- */
+  function draw() {
+    const m = state.map, mw = m.w * T, mh = m.h * T, t = state.t;
+    const cx = Math.round(mw <= VW ? -(VW - mw) / 2 : Math.max(0, Math.min(mw - VW, cam.x))); let cy = Math.round(mh <= VH ? -(VH - mh) / 2 : Math.max(0, Math.min(mh - VH, cam.y)));
+    let want = 0; if (state.mode === 'dialog') { const dh = ($('dlgBox').offsetHeight + 22) / SCALE, sy = pl.py + 18 - cy; if (sy > VH - dh) want = sy - (VH - dh); }
+    cam.shift += (want - cam.shift) * 0.18; if (Math.abs(want - cam.shift) < 0.5) cam.shift = want;
+    const cy0 = cy; cam.rx = cx; cam.ry = cy0 + Math.round(cam.shift);
+    cy = cam.ry;
+    ctx.fillStyle = m.bg; ctx.fillRect(0, 0, VW, VH); ctx.drawImage(m.groundCv, -cx, -cy);
+    // блики на воде
+    if (m.id === 'village') { ctx.fillStyle = PAL.w3; for (let ty = Math.max(1, cy >> 4); ty <= Math.min(m.h - 2, (cy + VH) >> 4); ty++) for (let tx = Math.max(1, cx >> 4); tx <= Math.min(m.w - 2, (cx + VW) >> 4); tx++) { if (m.ground[ty][tx] !== 'w' || m.ground[ty - 1][tx] !== 'w' || m.ground[ty + 1][tx] !== 'w' || m.ground[ty][tx - 1] !== 'w' || m.ground[ty][tx + 1] !== 'w') continue; const h = hash2(tx, ty, 90); if (Math.sin(t * 1.8 + h * 30) > 0.25) { const x = tx * T + 2 + ((h * 97 | 0) % 9) - cx, y = ty * T + 3 + ((h * 57 | 0) % 10) - cy; ctx.fillRect(x, y, 4, 1); ctx.fillRect(x + 2, y + 2, 3, 1); } } }
+    if (m.id === 'hall' && !reduced) { // цветные пятна света скользят по полу
+      ctx.save(); ctx.beginPath(); ctx.rect(-cx, 48 - cy, mw, mh - 48); ctx.clip(); ctx.globalCompositeOperation = 'lighter';
+      [['#ff5fa2', 0.0, 0.7, 0.9], ['#ffd84a', 2.1, 0.55, 1.1], ['#4fc3ff', 4.2, 0.8, 0.75]].forEach(([col, p0, sx, sy]) => { ctx.globalAlpha = 0.09; ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(Math.round(128 + Math.sin(t * sx + p0) * 92) - cx, Math.round(120 + Math.cos(t * sy + p0 * 1.7) * 50) - cy, 34, 18, 0, 0, Math.PI * 2); ctx.fill(); });
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
+    const list = [];
+    for (const o of m.objects) { if (o.x + o.w < cx || o.x > cx + VW || o.y + o.h < cy || o.y > cy + VH) continue; list.push({ z: o.baseY, img: typeof o.img === 'function' ? o.img(t) : o.img, x: o.x, y: o.y + (o.bob && !reduced ? Math.round(Math.sin(t * o.bob.s + o.bob.p) * o.bob.a) : 0) }); }
+    for (const f of m.flowers) if (!f.taken) { const bob = Math.round(Math.sin(t * 3 + f.i) * 1); list.push({ z: f.y * T + 12, img: A.flowers[f.i], x: f.x * T + 2, y: f.y * T - 1 + bob, spark: f }); }
+    const ents = m.ents.filter(e => !(e.kind === 'pig' && e.following)).concat(state.followers, [pl]);
+    ctx.fillStyle = 'rgba(30,20,40,0.22)';
+    for (const e of ents) { const big = e.kind !== 'pig', x = Math.round(e.px) + (e.ox || 0) - cx, y = Math.round(e.py) - cy; if (big) { ctx.fillRect(x + 3, y + 13, 10, 2); ctx.fillRect(x + 4, y + 12, 8, 1); ctx.fillRect(x + 4, y + 15, 8, 1); } else { ctx.fillRect(x + 2, y + 13, 12, 2); } }
+    for (const e of ents) {
+      const s = e.sheet; let img, dx = 0, dy = 0;
+      if (e.kind === 'pig') { img = (!e.following && s.idle) ? s.idle : s[e.dir][e.frame || 0];
+        if (e.following && state.danceT > 0 && !reduced) { const i = state.followers.indexOf(e); dy = -Math.round(Math.abs(Math.sin((t * 2.5 + i * 0.25) * Math.PI)) * 4); }
+        else if (e.following && m.id === 'hall' && !pl.moving && !reduced) { const i = state.followers.indexOf(e), c = (t + i * 0.37) % 2.4; if (c < 0.8) dy = -Math.round(Math.sin(((c / 0.4) % 1) * Math.PI) * 3); } }
+      else if (e === pl) { if (pl.moving) { img = s[pl.dir][pl.frame]; if (pl.frame === 0) dy = -1; } else { const f = (pl.dir !== 'up' && ((t + 1.3) % 4.1) < 0.13) ? 5 : ((t * 1.5) % 2) < 1 ? 0 : 3; img = s[pl.dir][f]; } }
+      else { const a = reduced ? { f: 0, dx: 0, dy: 0, dir: e.dir } : humanAnim(e, t); img = s[a.dir][a.f]; dx = a.dx; dy = a.dy; }
+      list.push({ z: Math.round(e.py) + 16 + (e === pl ? 0.5 : 0), img, x: Math.round(e.px) + 8 - s.w / 2 + (e.ox || 0) + dx, y: Math.round(e.py) + s.oy + dy, ent: e });
+      if (state.bouquet && m.id === 'hall') {
+        if (e.kind === 'husband' && !state.finished) list.push({ z: Math.round(e.py) + 16.2, img: state.bouquet.small, x: Math.round(e.px) + (e.ox || 0) + 10 + dx, y: Math.round(e.py) - 2 + dy });
+        if (e === pl && state.finished) { const d = pl.dir, ox = d === 'left' ? -8 : d === 'right' ? 8 : 6; list.push({ z: Math.round(e.py) + (d === 'up' ? 15.8 : 16.7), img: state.bouquet.small, x: Math.round(e.px) + ox, y: Math.round(e.py) - 2 + dy }); }
+      }
+    }
+    for (const c of (m.critters || [])) { const hop = c.t < 1 ? Math.round(Math.sin(c.t * Math.PI) * 4) : 0; ctx.fillStyle = 'rgba(30,20,40,0.22)'; ctx.fillRect(Math.round(c.px) + 1 - cx, Math.round(c.py) + 9 - cy, 8, 2); list.push({ z: Math.round(c.py) + 11, img: c.s[c.dir][c.t < 1 ? 1 : 0], x: Math.round(c.px) - 1, y: Math.round(c.py) - hop }); }
+    for (const e of m.ents) if (e.mem && e.mem.volley && !e.hall && !e.given && state.talk !== e && !reduced) { const u = (t * 1.5 + (e.ph || 0)) % 1, hgt = Math.round(Math.sin(u * Math.PI) * 20); ctx.fillStyle = 'rgba(30,20,40,0.2)'; ctx.fillRect(Math.round(e.px) + 5 - cx, Math.round(e.py) + 14 - cy, 6, 1); list.push({ z: Math.round(e.py) + 17, img: A.ball, x: Math.round(e.px) + 4, y: Math.round(e.py) - 16 - hgt }); }
+    list.sort((a, b) => a.z - b.z);
+    for (const d of list) { ctx.drawImage(d.img, d.x - cx, d.y - cy); if (d.spark && ((t * 2 + d.spark.i * 0.37) % 1.6) < 0.25) { ctx.fillStyle = '#fff'; ctx.fillRect(d.x - cx + 9, d.y - cy, 1, 3); ctx.fillRect(d.x - cx + 8, d.y - cy + 1, 3, 1); } }
+    if (m.id === 'hall') {
+      // гирлянда лампочек на стене
+      const gy = x => 13 + Math.round(4 * Math.abs(Math.sin(x / 256 * Math.PI * 3))), cols = ['#ffe36e', '#ff7f9f', '#7fd4ff', '#9be37a'];
+      ctx.fillStyle = '#3b2338'; for (let x = 0; x < 256; x += 2) ctx.fillRect(x - cx, gy(x) - cy, 2, 1);
+      for (let x = 5, i = 0; x < 256; x += 10, i++) { const on = reduced || ((i + (t * 2.5 | 0)) % 3) !== 0, y = gy(x) + 1; if (on) { ctx.globalAlpha = 0.28; ctx.fillStyle = cols[i % 4]; ctx.fillRect(x - 2 - cx, y - 1 - cy, 5, 5); ctx.globalAlpha = 1; } ctx.fillStyle = on ? cols[i % 4] : '#6b6672'; ctx.fillRect(x - 1 - cx, y - cy, 3, 3); if (on) { ctx.fillStyle = '#fff'; ctx.fillRect(x - 1 - cx, y - cy, 1, 1); } }
+      // огоньки свечей на торте
+      for (let k = 0; k < 3; k++) { const fx = 6 * T + 29 + k * 3 - cx, fy = 3 * T - 15 - cy, fl = ((t * 9 + k * 1.7) | 0) % 3; ctx.fillStyle = '#f08a2c'; ctx.fillRect(fx, fy - (fl === 0 ? 1 : 0), 1, 2); ctx.fillStyle = '#fff3b0'; ctx.fillRect(fx, fy + 1, 1, 1); }
+      // ноты из граммофона
+      for (const n of state.notes) { ctx.globalAlpha = Math.min(1, (n.life - n.t) * 1.4); ctx.drawImage(A.notes[n.k], Math.round(n.x + Math.sin(n.t * 3 + n.ph) * 5 - n.t * 5) - cx, Math.round(n.y - n.t * 15) - cy); } ctx.globalAlpha = 1;
+    }
+    // хлопушки и конфетти из торта
+    for (const q of state.pops) { ctx.globalAlpha = Math.min(1, (q.life - q.t) * 2); ctx.fillStyle = q.c; ctx.fillRect(Math.round(q.x) - cx, Math.round(q.y) - cy, 2, ((q.t * 12 | 0) % 2) ? 2 : 1); } ctx.globalAlpha = 1;
+    // маркеры
+    const bob = Math.round(Math.sin(t * 5) * 1.5);
+    if (state.mode === 'play' || state.mode === 'dialog') {
+      for (const e of m.ents) {
+        if (e.kind === 'npc' && !e.hall && !e.given) ctx.drawImage(A.bang, Math.round(e.px) + 4 - cx, Math.round(e.py) - 22 + bob - cy);
+        if (e.kind === 'pig' && !e.following) ctx.drawImage(A.heart, Math.round(e.px) + 3 - cx, Math.round(e.py) + e.sheet.oy - 12 + bob - cy);
+        if (e.kind === 'npc' && e.hall && !e.heard && state.talk !== e) { const a = reduced ? { dx: 0, dy: 0 } : humanAnim(e, t); ctx.drawImage(A.bubble, Math.round(e.px) + 2 + a.dx - cx, Math.round(e.py) - 25 + a.dy + bob - cy); }
+        if (e.kind === 'husband' && !state.finished) ctx.drawImage(A.bang, Math.round(e.px) + 12 - cx, Math.round(e.py) - 22 + bob - cy);
+      }
+      if (m.id === 'hall' && !state.gramSeen) ctx.drawImage(A.bang, 13 * T + 12 - cx, 3 * T - 20 + bob - cy);
+      if (m.id === 'village') { if (!state.mirrorDone && state.shards.length >= CAST.length) ctx.drawImage(A.bang, 16 * T + 4 - cx, 8 * T - 16 + bob - cy); if (state.gateOpen) ctx.drawImage(A.bang, 20 * T - 4 - cx, 4 * T + 4 + bob - cy); }
+    }
+    // сердечки праздника
+    for (const f of state.fx) { if (f.t < 0) continue; ctx.globalAlpha = Math.max(0, 1 - f.t / f.life); ctx.drawImage(A.heart, Math.round(f.x) - cx, Math.round(f.y - f.t * 20) - cy); } ctx.globalAlpha = 1;
+    // питомцы ведут к ближайшему цветку
+    if (state.petsAll && m.id === 'village' && state.mode === 'play') {
+      let best = null, bd = 1e9; for (const f of m.flowers) if (!f.taken) { const d = (f.x - pl.x) ** 2 + (f.y - pl.y) ** 2; if (d < bd) { bd = d; best = f; } }
+      if (best) {
+        const fx = best.x * T + 8 - cx, fy = best.y * T + 4 - cy, mt = Math.ceil(($('hud').offsetHeight + 10) / SCALE) + 6, ml = 15, mb = 15;
+        if (fx >= ml && fx <= VW - ml && fy >= mt + 8 && fy <= VH - mb) ctx.drawImage(A.paw, fx - 6, fy - 18 + bob);
+        else { const px = Math.max(ml, Math.min(VW - ml, fx)), py = Math.max(mt, Math.min(VH - mb, fy)), a = Math.atan2(fy - py, fx - px), ox = Math.round(Math.cos(a) * (9 + bob * 0.6)), oy = Math.round(Math.sin(a) * (9 + bob * 0.6));
+          ctx.drawImage(A.paw, Math.round(px) - 6, Math.round(py) - 5); ctx.fillStyle = OUT; ctx.fillRect(Math.round(px) + ox - 2, Math.round(py) + oy - 2, 5, 5); ctx.fillStyle = '#fff'; ctx.fillRect(Math.round(px) + ox - 1, Math.round(py) + oy - 1, 3, 3); }
+      }
+    }
+    if (tapMark) { ctx.globalAlpha = Math.min(1, tapMark.t * 3); ctx.fillStyle = '#fff'; const x = tapMark.x * T - cx, y = tapMark.y * T - cy, g = Math.round((0.4 - tapMark.t) * 6); for (const [ax, ay, sx, sy] of [[0, 0, 1, 1], [15, 0, -1, 1], [0, 15, 1, -1], [15, 15, -1, -1]]) { ctx.fillRect(x + ax + sx * g - (sx < 0 ? 3 : 0), y + ay + sy * g, 4, 1); ctx.fillRect(x + ax + sx * g, y + ay + sy * g - (sy < 0 ? 3 : 0), 1, 4); } ctx.globalAlpha = 1; }
+    if (confetti && m.id === 'hall') for (const c of confetti) { ctx.fillStyle = c.c; ctx.fillRect(Math.round(c.x + Math.sin(c.ph) * 4), Math.round(c.y), 2, Math.sin(c.ph * 2) > 0 ? 2 : 1); }
+  }
+  function resize() { const w = innerWidth, h = innerHeight; SCALE = Math.max(2, Math.round(Math.min(w, h) / 240)); VW = Math.ceil(w / SCALE); VH = Math.ceil(h / SCALE); cv.width = VW; cv.height = VH; cv.style.width = VW * SCALE + 'px'; cv.style.height = VH * SCALE + 'px'; ctx.imageSmoothingEnabled = false; }
+  function loop(ts) { const dt = Math.min(0.05, (ts - last) / 1000 || 0); last = ts; update(dt); draw(); requestAnimationFrame(loop); }
+
+  /* ---------- запуск ---------- */
+  function art() {
+    A.sheets = {}; A.faces = {}; for (const k in LOOKS) { A.sheets[k] = LOOKS[k].pig ? pigSheet(LOOKS[k]) : LOOKS[k].dog ? dogSheet(LOOKS[k]) : LOOKS[k].cat ? catSheet(LOOKS[k]) : charSheet(LOOKS[k]); A.faces[k] = portrait(LOOKS[k]); }
+    A.trees = [makeTree(1), makeTree(2), makeTree(7), makeTree(3, 'dark'), makeTree(4, 'dark'), makeTree(5, 'blossom')]; A.bushes = [makeBush(1), makeBush(2), makeBush(6)]; A.rocks = [makeRock(1), makeRock(2)];
+    A.castle = makeCastle(false); A.castleOpen = makeCastle(true); A.brazier = [makeBrazier(0), makeBrazier(1)]; A.mirror = makeMirror(false); A.mirrorFull = makeMirror(true); A.table = makeFeastTable(); A.sideTable = makeSideTable(); A.hallWall = makeHallWall(256);
+    A.flowers = FLOWERS.map(f => makeBloom(f.kind, f.col)); A.flowerUrl = A.flowers.map(c => c.toDataURL()); A.shard = makeShard(); A.bang = makeBang(); A.heart = makeHeartIcon(); A.paw = makePaw(); A.ball = makeBall(); A.bubble = makeBubble(); A.bubbleUrl = A.bubble.toDataURL(); A.suitcase = makeSuitcase(); A.gramophone = makeGramophone(); A.notes = ['#ffffff', '#ffe36e', '#f7a8c8', '#a6dcf7'].map(makeNote); A.noteUrl = A.notes[1].toDataURL(); $('petImg').src = A.paw.toDataURL();
+    $('shardImg').src = A.shard.toDataURL(); $('flowerImg').src = A.flowerUrl[0];
+    const h = $('hero'), g = h.getContext('2d'); g.imageSmoothingEnabled = false; g.clearRect(0, 0, 104, 30); if (A.sheets.rosa) g.drawImage(A.sheets.rosa.right[0], 2, 12); g.drawImage(A.sheets.pig1.right[0], 23, 16); g.drawImage(A.sheets.wanderer.down[0], 43, 2); g.drawImage(A.sheets.pig2.left[0], 64, 16); if (A.sheets.sara) g.drawImage(A.sheets.sara.left[0], 84, 13);
+    // иллюстрация к прологу: накрытый стол и встревоженные жители
+    const s = $('storyCv').getContext('2d'); s.imageSmoothingEnabled = false; s.clearRect(0, 0, 112, 44);
+    s.fillStyle = 'rgba(58,31,18,.18)'; s.fillRect(2, 40, 108, 2); s.fillRect(8, 42, 96, 1);
+    s.drawImage(A.sheets[CAST[0] ? CAST[0].look : 'A'].right[0], 3, 15); s.drawImage(A.table, 23, 9); s.drawImage(A.sheets[CAST[1] ? CAST[1].look : 'B'].left[0], 91, 15);
+    s.drawImage(A.bang, 8, 4); s.drawImage(A.bang, 96, 4);
+  }
+  function init() {
+    musicStop(); trackStop(); gen++;
+    state = { mode: 'title', t: 0, shards: [], flowers: 0, followers: [], fx: [], pops: [], notes: [], talk: null, danceT: 0, heartT: 0, gramSeen: false, bouquet: null, hallT: 0, popT: 0, noteT: 0, popSide: 0, petsAll: false, mirrorDone: false, gateOpen: false, finished: false, goal: 'ask' };
+    pigs = []; trail = []; confetti = null; tapMark = null; cam = { x: 0, y: 0, rx: 0, ry: 0, shift: 0 };
+    maps = {}; maps.village = buildVillage(); maps.hall = buildHall(); state.map = maps.village;
+    pl = { x: 20, y: 29, px: 20 * T, py: 29 * T, nx: 20, ny: 29, t: 0, dir: 'up', frame: 0, anim: 0, moving: false, path: null, pending: null, sheet: A.sheets.wanderer };
+    snapCam(); hud(); goal('ask');
+  }
+  function startGame() {
+    $('title').hidden = true; state.mode = 'cutscene'; const el = $('prologue'); el.hidden = false; el.scrollTop = 0;
+    $('pTitle').textContent = TEXT.prologueTitle; $('pBody').innerHTML = ''; TEXT.prologue.forEach((t, i) => { const p = document.createElement('p'); p.textContent = t; p.style.setProperty('--i', i); $('pBody').appendChild(p); });
+    $('pBtn').focus({ preventScroll: true });
+  }
+  // Полный перезапуск: закрывает все окна, сбрасывает прогресс и возвращает на титульный экран
+  function resetToTitle() {
+    dq = []; dcur = null; ddone = null; keys.length = 0;
+    for (const id of ['dlg', 'mirror', 'letter', 'prologue', 'confirm']) $(id).hidden = true;
+    $('toast').classList.remove('on'); $('fade').classList.remove('on'); $('mirrorCv').classList.remove('flash');
+    init(); $('hud').hidden = true; $('title').hidden = false; $('startBtn').focus({ preventScroll: true });
+  }
+  $('restartBtn').addEventListener('click', () => { if (state.mode !== 'play') return; state.mode = 'cutscene'; $('confirm').hidden = false; $('confirmNo').focus({ preventScroll: true }); });
+  $('confirmNo').addEventListener('click', () => { $('confirm').hidden = true; state.mode = 'play'; });
+  $('confirmYes').addEventListener('click', resetToTitle);
+  function beginPlay() { $('title').hidden = true; $('prologue').hidden = true; $('hud').hidden = false; state.mode = 'play'; }
+  $('pBtn').addEventListener('click', beginPlay);
+  $('startBtn').addEventListener('click', () => { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume(); } catch (e) { } startGame(); });
+  $('muteBtn').addEventListener('click', () => { muted = !muted; if (track) track.muted = muted; $('muteBtn').textContent = muted ? 'Звук: выкл' : 'Звук: вкл'; $('muteBtn').setAttribute('aria-pressed', String(muted)); });
+  document.title = TEXT.title; $('tTitle').textContent = TEXT.title; $('tSub').textContent = TEXT.subtitle; $('startBtn').textContent = TEXT.start; $('tCtl').textContent = TEXT.controls; $('mirrorBtn').textContent = TEXT.mirrorBtn; $('letterStay').textContent = TEXT.letterStay; $('letterRestart').textContent = TEXT.restart; $('pBtn').textContent = TEXT.prologueBtn; $('restartBtn').textContent = TEXT.restartBtn; $('confirmText').textContent = TEXT.restartAsk; $('confirmYes').textContent = TEXT.restartYes; $('confirmNo').textContent = TEXT.restartNo;
+  addEventListener('resize', () => { resize(); });
+  resize(); art(); init(); requestAnimationFrame(loop);
+  window.__game = { get state() { return state; }, get pl() { return pl; }, get maps() { return maps; }, tap, advance, enterHall };
+})();
+
+</script>
+</body>
+</html>
